@@ -54,14 +54,23 @@ docker run --rm --network none \
     set -euo pipefail
     command -v python3 >/dev/null
     command -v dpkg-deb >/dev/null
+    export PYTHONDONTWRITEBYTECODE=1
     bash -n /workspace/src/.xgc2/scripts/package_debs.sh
     bash -n /workspace/src/.xgc2/scripts/check_installed_packages.sh
-    python3 -m py_compile \
-      /workspace/src/xgc2_vrpn_relay/scripts/vrpn_relay \
-      /workspace/src/xgc2_vrpn_relay/scripts/xgc2_vrpn_relay/quality.py \
-      /workspace/src/xgc2_vrpn_relay/scripts/xgc2_vrpn_relay/rate.py \
-      /workspace/src/.xgc2/scripts/xgc2_artifact_manifest.py \
-      /workspace/src/.xgc2/scripts/check-workflow-bootstrap.py
+    python3 - <<'PY'
+import ast
+from pathlib import Path
+root = Path("/workspace/src")
+for path in (
+    root / "xgc2_vrpn_relay/scripts/vrpn_relay",
+    root / "xgc2_vrpn_relay/scripts/xgc2_vrpn_relay/quality.py",
+    root / "xgc2_vrpn_relay/scripts/xgc2_vrpn_relay/rate.py",
+    root / ".xgc2/scripts/xgc2_artifact_manifest.py",
+    root / ".xgc2/scripts/check-workflow-bootstrap.py",
+):
+    ast.parse(path.read_text(), filename=str(path))
+    print("syntax ok", path.name)
+PY
     python3 /workspace/src/xgc2_vrpn_relay/test/test_quality.py
     python3 /workspace/src/xgc2_vrpn_relay/test/test_rate.py
     /workspace/src/.xgc2/scripts/package_debs.sh --output-dir /workspace/out
