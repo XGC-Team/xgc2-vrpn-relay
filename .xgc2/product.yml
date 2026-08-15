@@ -21,7 +21,8 @@ apt:
   - xgc2-vrpn-relay
   package_architectures:
     xgc2-vrpn-relay:
-    - all
+    - amd64
+    - arm64
   depends:
   - python3
   recommends:
