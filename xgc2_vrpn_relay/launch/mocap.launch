@@ -1,0 +1,26 @@
+<launch>
+  <!-- Shared VRPN client + relay. Robots pass tracker and vision_out. -->
+  <arg name="server" default="127.0.0.1" />
+  <arg name="port" default="3883" />
+  <arg name="tracker" default="tracker" />
+  <arg name="pose_out" default="/pose" />
+  <arg name="twist_out" default="/twist" />
+  <arg name="accel_out" default="/accel" />
+  <arg name="vision_out" default="" />
+  <arg name="vision_target_hz" default="30.0" />
+
+  <include file="$(find xgc2_vrpn_relay)/launch/vrpn.launch">
+    <arg name="server" value="$(arg server)" />
+    <arg name="port" value="$(arg port)" />
+    <arg name="tracker" value="$(arg tracker)" />
+  </include>
+
+  <node pkg="xgc2_vrpn_relay" type="vrpn_relay" name="vrpn_relay" output="screen">
+    <param name="tracker" value="$(arg tracker)" />
+    <param name="pose_out" value="$(arg pose_out)" />
+    <param name="twist_out" value="$(arg twist_out)" />
+    <param name="accel_out" value="$(arg accel_out)" />
+    <param name="vision_out" value="$(arg vision_out)" />
+    <param name="vision_target_hz" value="$(arg vision_target_hz)" />
+  </node>
+</launch>
