@@ -8,7 +8,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 # Do not inherit the host ROS_DISTRO; this vehicle package targets Melodic.
 ROS_DISTRO="${XGC2_VRPN_ROS_DISTRO:-melodic}"
 OUTPUT_DIR="${1:-${REPO_ROOT}/debs}"
-VERSION="${PACKAGE_VERSION:-0.1.0-3}"
+VERSION="${PACKAGE_VERSION:-$(awk '/^version:/ {print $2; exit}' "${REPO_ROOT}/.xgc2/product.yml")}"
 PACKAGE="xgc2-vrpn-relay"
 PREFIX="/opt/ros/${ROS_DISTRO}"
 SRC="${REPO_ROOT}/xgc2_vrpn_relay"

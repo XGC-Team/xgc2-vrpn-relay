@@ -18,11 +18,15 @@ EOF
 }
 
 product_version() {
-  awk -F': *' '/^version:[[:space:]]*/ {print $2; exit}' "${REPO_ROOT}/.xgc2/product.yml"
+  # mawk (bionic) does not implement POSIX [[:space:]].
+  awk '/^version:/ {print $2; exit}' "${REPO_ROOT}/.xgc2/product.yml"
 }
 
 VERSION="${PACKAGE_VERSION:-$(product_version)}"
-VERSION="${VERSION:-0.1.0-1}"
+if [[ -z "${VERSION}" ]]; then
+  echo "cannot read version from .xgc2/product.yml" >&2
+  exit 1
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
