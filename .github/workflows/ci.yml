@@ -44,7 +44,7 @@ jobs:
               print("parsed", launch)
           text = Path(".xgc2/product.yml").read_text()
           assert "id: xgc2-vrpn-relay" in text
-          assert "version: 0.1.0-4" in text
+          assert "version: 0.1.0-5" in text
           PY
   build:
     name: all-arch
@@ -54,7 +54,7 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
-      - name: Build the single Architecture: all deb
+      - name: "Build the single Architecture: all deb"
         run: |
           set -euo pipefail
           .xgc2/scripts/ci_in_image.sh \
