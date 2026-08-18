@@ -23,6 +23,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
+from xgc2_vrpn_relay.offset import apply_world_offset, compute_align_offset
 from xgc2_vrpn_relay.quality import evaluate_pose, is_finite
 from xgc2_vrpn_relay.rate import should_emit_vision
 
@@ -47,6 +48,12 @@ def main():
     max_abs_xy = float(rospy.get_param("~max_abs_xy", 900.0))
     max_jump_m = float(rospy.get_param("~max_jump_m", 2.0))
     frozen_s = float(rospy.get_param("~frozen_s", 0.5))
+    offset_x = float(rospy.get_param("~offset_x", 0.0))
+    offset_y = float(rospy.get_param("~offset_y", 0.0))
+    offset_z = float(rospy.get_param("~offset_z", 0.0))
+    align_xy = bool(rospy.get_param("~align_xy", False))
+    align_to_x = float(rospy.get_param("~align_to_x", 0.0))
+    align_to_y = float(rospy.get_param("~align_to_y", 0.0))
 
     pose_pub = rospy.Publisher(pose_out, PoseStamped, queue_size=1)
     twist_pub = rospy.Publisher(twist_out, TwistStamped, queue_size=1)
@@ -56,7 +63,15 @@ def main():
         if vision_out
         else None
     )
-    state = {"last_ok": None, "last_vision": None, "last_move": None}
+    state = {
+        "last_ok": None,
+        "last_vision": None,
+        "last_move": None,
+        "aligned": not align_xy,
+        "dx": offset_x,
+        "dy": offset_y,
+        "dz": offset_z,
+    }
 
     def on_pose(msg):
         now = rospy.Time.now()
@@ -104,6 +119,26 @@ def main():
             if moved >= 1e-4:
                 state["last_move"] = (xyz, now_s)
         state["last_ok"] = xyz
+        if not state["aligned"]:
+            dx, dy = compute_align_offset(xyz[0], xyz[1], align_to_x, align_to_y)
+            state["dx"] = dx
+            state["dy"] = dy
+            state["aligned"] = True
+            rospy.loginfo(
+                "vrpn_relay align raw=(%.3f, %.3f) -> (%.3f, %.3f) offset=(%.3f, %.3f)",
+                xyz[0],
+                xyz[1],
+                align_to_x,
+                align_to_y,
+                dx,
+                dy,
+            )
+        ox, oy, oz = apply_world_offset(
+            xyz[0], xyz[1], xyz[2], state["dx"], state["dy"], state["dz"]
+        )
+        msg.pose.position.x = ox
+        msg.pose.position.y = oy
+        msg.pose.position.z = oz
         pose_pub.publish(msg)
         if vision_pub is None:
             return
@@ -141,11 +176,18 @@ def main():
     rospy.Subscriber(twist_in, TwistStamped, on_twist, queue_size=1)
     rospy.Subscriber(accel_in, AccelStamped, on_accel, queue_size=1)
     rospy.loginfo(
-        "vrpn_relay tracker=%s pose=%s vision=%s target_hz=%.1f",
+        "vrpn_relay tracker=%s pose=%s vision=%s target_hz=%.1f "
+        "offset=(%.3f, %.3f, %.3f) align_xy=%s align_to=(%.3f, %.3f)",
         tracker,
         pose_out,
         vision_out or "off",
         target_hz,
+        offset_x,
+        offset_y,
+        offset_z,
+        align_xy,
+        align_to_x,
+        align_to_y,
     )
     rospy.spin()
 

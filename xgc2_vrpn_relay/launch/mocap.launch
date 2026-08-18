@@ -8,6 +8,12 @@
   <arg name="accel_out" default="/accel" />
   <arg name="vision_out" default="" />
   <arg name="vision_target_hz" default="30.0" />
+  <arg name="offset_x" default="0.0" />
+  <arg name="offset_y" default="0.0" />
+  <arg name="offset_z" default="0.0" />
+  <arg name="align_xy" default="false" />
+  <arg name="align_to_x" default="0.0" />
+  <arg name="align_to_y" default="0.0" />
 
   <include file="$(find xgc2_vrpn_relay)/launch/vrpn.launch">
     <arg name="server" value="$(arg server)" />
@@ -22,5 +28,11 @@
     <param name="accel_out" value="$(arg accel_out)" />
     <param name="vision_out" value="$(arg vision_out)" />
     <param name="vision_target_hz" value="$(arg vision_target_hz)" />
+    <param name="offset_x" value="$(arg offset_x)" />
+    <param name="offset_y" value="$(arg offset_y)" />
+    <param name="offset_z" value="$(arg offset_z)" />
+    <param name="align_xy" value="$(arg align_xy)" />
+    <param name="align_to_x" value="$(arg align_to_x)" />
+    <param name="align_to_y" value="$(arg align_to_y)" />
   </node>
 </launch>

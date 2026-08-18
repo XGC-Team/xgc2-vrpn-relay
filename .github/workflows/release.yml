@@ -106,6 +106,7 @@ jobs:
         run: |
           python3 xgc2_vrpn_relay/test/test_quality.py
           python3 xgc2_vrpn_relay/test/test_rate.py
+          python3 xgc2_vrpn_relay/test/test_offset.py
   build:
     name: debs-${{ matrix.name }}
     needs: release-guard
@@ -188,6 +189,7 @@ jobs:
           python3 .xgc2/scripts/check-workflow-bootstrap.py
           python3 xgc2_vrpn_relay/test/test_quality.py
           python3 xgc2_vrpn_relay/test/test_rate.py
+          python3 xgc2_vrpn_relay/test/test_offset.py
 
 
 

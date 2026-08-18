@@ -73,6 +73,7 @@ for path in (
 PY
     python3 /workspace/src/xgc2_vrpn_relay/test/test_quality.py
     python3 /workspace/src/xgc2_vrpn_relay/test/test_rate.py
+    python3 /workspace/src/xgc2_vrpn_relay/test/test_offset.py
     /workspace/src/.xgc2/scripts/package_debs.sh --output-dir /workspace/out
     shopt -s nullglob
     built_debs=(/workspace/out/*.deb)

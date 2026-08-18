@@ -40,6 +40,12 @@ Vision rate (typical target 30 Hz):
 Quality rejects non-finite values, a degenerate quaternion, `(0,0)`
 origin, `|xy| > 900`, a jump larger than 2 m, and a frozen tracker.
 
+After the gate, `vrpn_relay` applies a world-frame translation to pose
+(and optional `vision_out`). Twist and accel are not shifted. Use fixed
+`offset_x` / `offset_y` / `offset_z`, or `align_xy:=true` so the first
+accepted pose becomes `(align_to_x, align_to_y)` (default `0, 0`);
+`z` stays as Motive reports it unless `offset_z` is set.
+
 ## Install
 
 ```bash

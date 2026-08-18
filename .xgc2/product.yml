@@ -1,7 +1,7 @@
 schema: xgc2.product.v1
 id: xgc2-vrpn-relay
 name: XGC2 VRPN Relay
-version: 0.1.0-6
+version: 0.1.0-7
 kind: ros1-apt
 summary: Shared ROS1 VRPN client wrapper and pose/twist/accel/vision_pose relay. Robots only assemble tracker name and whether vision_pose is on.
 groups:
@@ -59,7 +59,7 @@ release:
   workflow: release.yml
   ci_workflow: ci.yml
   apt_versions:
-    bionic: 0.1.0-6
-    focal: 0.1.0-6
-    jammy: 0.1.0-6
-    noble: 0.1.0-6
+    bionic: 0.1.0-7
+    focal: 0.1.0-7
+    jammy: 0.1.0-7
+    noble: 0.1.0-7

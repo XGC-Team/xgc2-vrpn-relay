@@ -32,9 +32,11 @@ jobs:
           python3 -m py_compile \
             xgc2_vrpn_relay/scripts/vrpn_relay \
             xgc2_vrpn_relay/scripts/xgc2_vrpn_relay/quality.py \
-            xgc2_vrpn_relay/scripts/xgc2_vrpn_relay/rate.py
+            xgc2_vrpn_relay/scripts/xgc2_vrpn_relay/rate.py \
+            xgc2_vrpn_relay/scripts/xgc2_vrpn_relay/offset.py
           python3 xgc2_vrpn_relay/test/test_quality.py
           python3 xgc2_vrpn_relay/test/test_rate.py
+          python3 xgc2_vrpn_relay/test/test_offset.py
           python3 - <<'PY'
           import xml.etree.ElementTree as ET
           from pathlib import Path
@@ -44,7 +46,7 @@ jobs:
               print("parsed", launch)
           text = Path(".xgc2/product.yml").read_text()
           assert "id: xgc2-vrpn-relay" in text
-          assert "version: 0.1.0-6" in text
+          assert "version: 0.1.0-7" in text
           PY
   build:
     name: all-arch
