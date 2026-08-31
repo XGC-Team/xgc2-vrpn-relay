@@ -11,8 +11,9 @@ xgc2-vrpn-router          protocol VRPN (ROS-independent)
         ↓
 vrpn_client_ros           official client, one tracker
         ↓
-xgc2_vrpn_relay           quality + local pose/twist/accel
-                          + optional /mavros/vision_pose/pose
+xgc2_vrpn_relay           robot-local quality + pose/twist/accel relay
+experiment_projection     one Experiment XYZ offset + canonical topics
+                          + optional bounded vision_pose output
         ↓
 robot mocap launch        tracker name, vision_out on/off
 ```
@@ -27,6 +28,14 @@ adapter, the same split as `xgc2-camera-core` / `xgc2-camera-driver`.
 rigid body on the server.
 
 `mocap.launch` starts that client plus `vrpn_relay`.
+
+`experiment_projection.launch` consumes one already-selected source for one
+Experiment slot. It adds the Experiment's explicit XYZ translation to pose,
+passes twist and accel unchanged, preserves the source header and timestamp,
+and can publish the same translated pose to PX4 vision input at at most 30 Hz.
+It does not choose a source, align an origin, interpolate, repeat samples, or
+fit clocks. The caller owns the source topic and canonical `/uavN` or `/ugvN`
+output names.
 
 Every robot gets pose / twist / accel one-for-one after a quality gate.
 

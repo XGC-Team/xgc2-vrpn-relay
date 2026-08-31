@@ -79,9 +79,12 @@ for prefix in "${ROS_PREFIXES[@]}"; do
   install -m 0644 "${src}/package.xml" "${share}/package.xml"
   install -m 0644 "${src}/launch/vrpn.launch" "${share}/launch/vrpn.launch"
   install -m 0644 "${src}/launch/mocap.launch" "${share}/launch/mocap.launch"
+  install -m 0644 "${src}/launch/experiment_projection.launch" "${share}/launch/experiment_projection.launch"
+  install -m 0755 "${src}/scripts/experiment_projection" "${lib}/experiment_projection"
   install -m 0755 "${src}/scripts/vrpn_relay" "${lib}/vrpn_relay"
   install -m 0644 \
     "${src}/scripts/xgc2_vrpn_relay/__init__.py" \
+    "${src}/scripts/xgc2_vrpn_relay/projection.py" \
     "${src}/scripts/xgc2_vrpn_relay/quality.py" \
     "${src}/scripts/xgc2_vrpn_relay/rate.py" \
     "${lib}/xgc2_vrpn_relay/"
@@ -90,8 +93,9 @@ done
 cat > "${pkg_root}/usr/share/doc/${PACKAGE}/README" <<EOF
 ${PACKAGE}
 
-Shared ROS1 VRPN client wrapper and pose/twist/accel/vision_pose relay.
-Robots only assemble tracker name and whether vision_pose is on.
+Shared ROS1 VRPN client wrapper and Experiment localization projection.
+The projection applies one explicit XYZ translation, preserves source stamps,
+passes twist/accel unchanged, and can bound vision_pose output to 30 Hz.
 
 Installed ROS package:
   xgc2_vrpn_relay
@@ -114,15 +118,16 @@ Installed-Size: ${installed_size}
 Maintainer: XGC2 <apt@example.com>
 Depends: python3
 Recommends: ros-melodic-vrpn-client-ros | ros-noetic-vrpn-client-ros, ros-melodic-geometry-msgs | ros-noetic-geometry-msgs, ros-melodic-rospy | ros-noetic-rospy
-Description: XGC2 shared VRPN relay
- Reusable ROS1 VRPN client wrapper and pose/twist/accel/vision_pose
- relay. Robots pass tracker and vision_out; they do not copy this node.
+Description: XGC2 shared VRPN relay and localization projection
+ Reusable ROS1 VRPN client wrapper plus an explicit Experiment XYZ
+ projection for canonical pose/twist/accel and bounded vision_pose output.
 EOF
 chmod 0644 "${pkg_root}/DEBIAN/control"
 
 find "${pkg_root}" -type d -exec chmod 0755 {} +
 chmod 0755 "${pkg_root}/DEBIAN"
 for prefix in "${ROS_PREFIXES[@]}"; do
+  chmod 0755 "${pkg_root}${prefix}/lib/xgc2_vrpn_relay/experiment_projection"
   chmod 0755 "${pkg_root}${prefix}/lib/xgc2_vrpn_relay/vrpn_relay"
 done
 

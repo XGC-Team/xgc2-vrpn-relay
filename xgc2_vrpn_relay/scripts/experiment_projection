@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+"""Project one selected VRPN body into an Experiment namespace.
+
+The node applies one explicit XYZ translation to PoseStamped. Orientation and
+header stamp are preserved. Twist/Accel pass through unchanged. An optional
+vision output receives the same translated pose at a bounded wall-clock rate.
+"""
+
+from __future__ import print_function
+
+import copy
+import os
+import sys
+import time
+
+import rospy
+from geometry_msgs.msg import AccelStamped, PoseStamped, TwistStamped
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+
+from xgc2_vrpn_relay.projection import finite_values, translated_position, valid_pose
+from xgc2_vrpn_relay.rate import should_emit_vision
+
+
+def required_topic(name):
+    value = str(rospy.get_param("~" + name, "")).strip()
+    if not value.startswith("/") or value.endswith("/") or "//" in value:
+        raise rospy.ROSInitException("~{} must be one absolute ROS topic".format(name))
+    return value
+
+
+def main():
+    rospy.init_node("experiment_localization_projection")
+    pose_in = required_topic("pose_in")
+    twist_in = required_topic("twist_in")
+    accel_in = required_topic("accel_in")
+    pose_out = required_topic("pose_out")
+    twist_out = required_topic("twist_out")
+    accel_out = required_topic("accel_out")
+    vision_out = str(rospy.get_param("~vision_out", "")).strip()
+    if vision_out and (not vision_out.startswith("/") or vision_out.endswith("/") or "//" in vision_out):
+        raise rospy.ROSInitException("~vision_out must be empty or one absolute ROS topic")
+    if len({pose_out, twist_out, accel_out} | ({vision_out} if vision_out else set())) != 3 + bool(vision_out):
+        raise rospy.ROSInitException("Experiment localization outputs must be unique")
+
+    offset_x = float(rospy.get_param("~offset_x", 0.0))
+    offset_y = float(rospy.get_param("~offset_y", 0.0))
+    offset_z = float(rospy.get_param("~offset_z", 0.0))
+    vision_hz = float(rospy.get_param("~vision_target_hz", 30.0))
+    if not finite_values(offset_x, offset_y, offset_z, vision_hz) or (vision_out and vision_hz <= 0.0):
+        raise rospy.ROSInitException("offsets and vision_target_hz must be finite; enabled vision requires a positive rate")
+
+    pose_pub = rospy.Publisher(pose_out, PoseStamped, queue_size=1)
+    twist_pub = rospy.Publisher(twist_out, TwistStamped, queue_size=1)
+    accel_pub = rospy.Publisher(accel_out, AccelStamped, queue_size=1)
+    vision_pub = rospy.Publisher(vision_out, PoseStamped, queue_size=1) if vision_out else None
+    last_vision = [None]
+
+    def on_pose(message):
+        p = message.pose.position
+        q = message.pose.orientation
+        if not valid_pose(p.x, p.y, p.z, q.x, q.y, q.z, q.w):
+            rospy.logwarn_throttle(2.0, "drop invalid Experiment localization pose")
+            return
+        if message.header.stamp == rospy.Time():
+            rospy.logwarn_throttle(2.0, "drop unstamped Experiment localization pose")
+            return
+        projected = copy.deepcopy(message)
+        x, y, z = translated_position(p.x, p.y, p.z, offset_x, offset_y, offset_z)
+        projected.pose.position.x = x
+        projected.pose.position.y = y
+        projected.pose.position.z = z
+        pose_pub.publish(projected)
+        if vision_pub is not None:
+            # Release packages target Melodic/Python 2 as well as Noetic.
+            # This is only an emit-rate clock; source stamps remain untouched.
+            now = time.time()
+            if should_emit_vision(now, last_vision[0], vision_hz):
+                last_vision[0] = now
+                vision_pub.publish(projected)
+
+    def on_twist(message):
+        value = message.twist
+        if finite_values(
+            value.linear.x, value.linear.y, value.linear.z,
+            value.angular.x, value.angular.y, value.angular.z,
+        ):
+            twist_pub.publish(message)
+
+    def on_accel(message):
+        value = message.accel
+        if finite_values(
+            value.linear.x, value.linear.y, value.linear.z,
+            value.angular.x, value.angular.y, value.angular.z,
+        ):
+            accel_pub.publish(message)
+
+    rospy.Subscriber(pose_in, PoseStamped, on_pose, queue_size=1, tcp_nodelay=True)
+    rospy.Subscriber(twist_in, TwistStamped, on_twist, queue_size=1, tcp_nodelay=True)
+    rospy.Subscriber(accel_in, AccelStamped, on_accel, queue_size=1, tcp_nodelay=True)
+    rospy.loginfo(
+        "Experiment localization projection pose=%s -> %s offset=(%.3f, %.3f, %.3f) vision=%s@%.1fHz",
+        pose_in, pose_out, offset_x, offset_y, offset_z, vision_out or "off", vision_hz,
+    )
+    rospy.spin()
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except rospy.ROSInterruptException:
+        sys.exit(0)

@@ -5,6 +5,7 @@ find_package(catkin REQUIRED)
 catkin_package()
 
 catkin_install_python(PROGRAMS
+  scripts/experiment_projection
   scripts/vrpn_relay
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

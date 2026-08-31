@@ -2,7 +2,7 @@
 <package format="2">
   <name>xgc2_vrpn_relay</name>
   <version>0.1.0</version>
-  <description>Shared VRPN client wrapper and pose/twist/accel/vision_pose relay. Robots only assemble tracker and vision_out.</description>
+  <description>Shared VRPN relay and Experiment localization projection with explicit XYZ offset and bounded vision_pose output.</description>
   <maintainer email="apt@example.com">XGC2</maintainer>
   <license>BSD</license>
   <buildtool_depend>catkin</buildtool_depend>

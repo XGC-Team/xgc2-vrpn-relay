@@ -31,11 +31,13 @@ mkdir -p "${share}/launch" "${lib}/xgc2_vrpn_relay" \
 cp -a "${SRC}/package.xml" "${share}/package.xml"
 cp -a "${SRC}/launch/"*.launch "${share}/launch/"
 cp -a "${SRC}/scripts/xgc2_vrpn_relay/"*.py "${lib}/xgc2_vrpn_relay/"
+cp -a "${SRC}/scripts/experiment_projection" "${lib}/experiment_projection"
 cp -a "${SRC}/scripts/vrpn_relay" "${lib}/vrpn_relay"
 if [[ "${ROS_DISTRO}" == "melodic" ]]; then
+  sed -i '1s|^#!.*|#!/usr/bin/env python|' "${lib}/experiment_projection"
   sed -i '1s|^#!.*|#!/usr/bin/env python|' "${lib}/vrpn_relay"
 fi
-chmod 0755 "${lib}/vrpn_relay"
+chmod 0755 "${lib}/experiment_projection" "${lib}/vrpn_relay"
 
 cat > "${pkg_root}/DEBIAN/control" <<EOF
 Package: ${PACKAGE}
@@ -45,9 +47,9 @@ Priority: optional
 Architecture: all
 Maintainer: XGC2 <apt@example.com>
 Depends: ros-${ROS_DISTRO}-vrpn-client-ros, ros-${ROS_DISTRO}-rospy, ros-${ROS_DISTRO}-geometry-msgs, ros-${ROS_DISTRO}-roslaunch
-Description: XGC2 VRPN client wrapper and pose/twist/accel relay
+Description: XGC2 VRPN relay and Experiment XYZ localization projection
 EOF
-printf 'xgc2-vrpn-relay %s for ROS %s\n' "${VERSION}" "${ROS_DISTRO}" \
+printf 'xgc2-vrpn-relay %s for ROS %s; includes Experiment XYZ projection\n' "${VERSION}" "${ROS_DISTRO}" \
   > "${pkg_root}/usr/share/doc/${PACKAGE}/README"
 
 find "${pkg_root}" -type d -exec chmod 0755 {} +

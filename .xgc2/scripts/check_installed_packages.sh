@@ -85,12 +85,15 @@ dpkg-deb --extract "${deb}" "${tmp_dir}/root"
 dpkg-deb --control "${deb}" "${tmp_dir}/control"
 
 for prefix in /opt/ros/melodic /opt/ros/noetic; do
+  test -x "${tmp_dir}/root${prefix}/lib/xgc2_vrpn_relay/experiment_projection"
   test -x "${tmp_dir}/root${prefix}/lib/xgc2_vrpn_relay/vrpn_relay"
+  test -f "${tmp_dir}/root${prefix}/lib/xgc2_vrpn_relay/xgc2_vrpn_relay/projection.py"
   test -f "${tmp_dir}/root${prefix}/lib/xgc2_vrpn_relay/xgc2_vrpn_relay/quality.py"
   test -f "${tmp_dir}/root${prefix}/lib/xgc2_vrpn_relay/xgc2_vrpn_relay/rate.py"
   test -f "${tmp_dir}/root${prefix}/share/xgc2_vrpn_relay/package.xml"
   test -f "${tmp_dir}/root${prefix}/share/xgc2_vrpn_relay/launch/vrpn.launch"
   test -f "${tmp_dir}/root${prefix}/share/xgc2_vrpn_relay/launch/mocap.launch"
+  test -f "${tmp_dir}/root${prefix}/share/xgc2_vrpn_relay/launch/experiment_projection.launch"
   grep -q 'refresh_tracker_frequency: 0.0' \
     "${tmp_dir}/root${prefix}/share/xgc2_vrpn_relay/launch/vrpn.launch"
   grep -q 'pkg="xgc2_vrpn_relay"' \
