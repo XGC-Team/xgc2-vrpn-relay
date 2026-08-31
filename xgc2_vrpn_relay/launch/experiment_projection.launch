@@ -1,11 +1,8 @@
 <launch>
-  <arg name="pose_in" />
-  <arg name="twist_in" />
-  <arg name="accel_in" />
-  <arg name="pose_out" />
-  <arg name="twist_out" />
-  <arg name="accel_out" />
-  <arg name="vision_out" default="" />
+  <arg name="source_root" />
+  <arg name="mocap_rigid_body" />
+  <arg name="robot_namespace" />
+  <arg name="publish_vision" default="false" />
   <arg name="vision_target_hz" default="30.0" />
   <arg name="offset_x" default="0.0" />
   <arg name="offset_y" default="0.0" />
@@ -13,13 +10,10 @@
 
   <node pkg="xgc2_vrpn_relay" type="experiment_projection"
         name="experiment_localization_projection" output="screen">
-    <param name="pose_in" value="$(arg pose_in)" />
-    <param name="twist_in" value="$(arg twist_in)" />
-    <param name="accel_in" value="$(arg accel_in)" />
-    <param name="pose_out" value="$(arg pose_out)" />
-    <param name="twist_out" value="$(arg twist_out)" />
-    <param name="accel_out" value="$(arg accel_out)" />
-    <param name="vision_out" value="$(arg vision_out)" />
+    <param name="source_root" value="$(arg source_root)" />
+    <param name="mocap_rigid_body" value="$(arg mocap_rigid_body)" />
+    <param name="robot_namespace" value="$(arg robot_namespace)" />
+    <param name="publish_vision" type="bool" value="$(arg publish_vision)" />
     <param name="vision_target_hz" value="$(arg vision_target_hz)" />
     <param name="offset_x" value="$(arg offset_x)" />
     <param name="offset_y" value="$(arg offset_y)" />

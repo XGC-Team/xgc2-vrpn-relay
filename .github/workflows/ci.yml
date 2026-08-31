@@ -49,7 +49,7 @@ jobs:
               print("parsed", launch)
           text = Path(".xgc2/product.yml").read_text()
           assert "id: xgc2-vrpn-relay" in text
-          assert "version: 0.1.0-8" in text
+          assert "version: 0.1.0-9" in text
           PY
   build:
     name: all-arch

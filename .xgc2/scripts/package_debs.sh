@@ -94,8 +94,10 @@ cat > "${pkg_root}/usr/share/doc/${PACKAGE}/README" <<EOF
 ${PACKAGE}
 
 Shared ROS1 VRPN client wrapper and Experiment localization projection.
-The projection applies one explicit XYZ translation, preserves source stamps,
-passes twist/accel unchanged, and can bound vision_pose output to 30 Hz.
+The projection maps source_root, mocap_rigid_body, robot_namespace, and
+publish_vision onto canonical topics, applies one explicit XYZ translation,
+preserves source stamps, passes twist/accel unchanged, and can bound
+vision_pose output to 30 Hz.
 
 Installed ROS package:
   xgc2_vrpn_relay
@@ -119,8 +121,8 @@ Maintainer: XGC2 <apt@example.com>
 Depends: python3
 Recommends: ros-melodic-vrpn-client-ros | ros-noetic-vrpn-client-ros, ros-melodic-geometry-msgs | ros-noetic-geometry-msgs, ros-melodic-rospy | ros-noetic-rospy
 Description: XGC2 shared VRPN relay and localization projection
- Reusable ROS1 VRPN client wrapper plus an explicit Experiment XYZ
- projection for canonical pose/twist/accel and bounded vision_pose output.
+ Reusable ROS1 VRPN client wrapper plus Experiment projection from
+ source_root, mocap_rigid_body, robot_namespace, and publish_vision.
 EOF
 chmod 0644 "${pkg_root}/DEBIAN/control"
 
