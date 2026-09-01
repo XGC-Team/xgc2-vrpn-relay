@@ -85,29 +85,16 @@ dpkg-deb --extract "${deb}" "${tmp_dir}/root"
 dpkg-deb --control "${deb}" "${tmp_dir}/control"
 
 for prefix in /opt/ros/melodic /opt/ros/noetic; do
-  test -x "${tmp_dir}/root${prefix}/lib/xgc2_vrpn_relay/experiment_projection"
   test -x "${tmp_dir}/root${prefix}/lib/xgc2_vrpn_relay/vrpn_relay"
-  test -f "${tmp_dir}/root${prefix}/lib/xgc2_vrpn_relay/xgc2_vrpn_relay/projection.py"
   test -f "${tmp_dir}/root${prefix}/lib/xgc2_vrpn_relay/xgc2_vrpn_relay/quality.py"
   test -f "${tmp_dir}/root${prefix}/lib/xgc2_vrpn_relay/xgc2_vrpn_relay/rate.py"
   test -f "${tmp_dir}/root${prefix}/share/xgc2_vrpn_relay/package.xml"
   test -f "${tmp_dir}/root${prefix}/share/xgc2_vrpn_relay/launch/vrpn.launch"
   test -f "${tmp_dir}/root${prefix}/share/xgc2_vrpn_relay/launch/mocap.launch"
-  test -f "${tmp_dir}/root${prefix}/share/xgc2_vrpn_relay/launch/experiment_projection.launch"
   grep -q 'refresh_tracker_frequency: 0.0' \
     "${tmp_dir}/root${prefix}/share/xgc2_vrpn_relay/launch/vrpn.launch"
   grep -q 'pkg="xgc2_vrpn_relay"' \
     "${tmp_dir}/root${prefix}/share/xgc2_vrpn_relay/launch/mocap.launch"
-  launch="${tmp_dir}/root${prefix}/share/xgc2_vrpn_relay/launch/experiment_projection.launch"
-  grep -q 'name="source_root"' "${launch}"
-  grep -q 'name="mocap_rigid_body"' "${launch}"
-  grep -q 'name="robot_namespace"' "${launch}"
-  grep -q 'name="publish_vision"' "${launch}"
-  if grep -Eq 'name="(pose_in|twist_in|accel_in|pose_out|twist_out|accel_out|vision_out)"' \
-      "${launch}"; then
-    echo "experiment_projection.launch must not expose explicit topic args" >&2
-    exit 1
-  fi
 done
 
 if find "${tmp_dir}/root/lib/systemd/system" -maxdepth 1 -name '*.service' \

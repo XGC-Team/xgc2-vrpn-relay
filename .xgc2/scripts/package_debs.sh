@@ -79,12 +79,9 @@ for prefix in "${ROS_PREFIXES[@]}"; do
   install -m 0644 "${src}/package.xml" "${share}/package.xml"
   install -m 0644 "${src}/launch/vrpn.launch" "${share}/launch/vrpn.launch"
   install -m 0644 "${src}/launch/mocap.launch" "${share}/launch/mocap.launch"
-  install -m 0644 "${src}/launch/experiment_projection.launch" "${share}/launch/experiment_projection.launch"
-  install -m 0755 "${src}/scripts/experiment_projection" "${lib}/experiment_projection"
   install -m 0755 "${src}/scripts/vrpn_relay" "${lib}/vrpn_relay"
   install -m 0644 \
     "${src}/scripts/xgc2_vrpn_relay/__init__.py" \
-    "${src}/scripts/xgc2_vrpn_relay/projection.py" \
     "${src}/scripts/xgc2_vrpn_relay/quality.py" \
     "${src}/scripts/xgc2_vrpn_relay/rate.py" \
     "${lib}/xgc2_vrpn_relay/"
@@ -93,11 +90,9 @@ done
 cat > "${pkg_root}/usr/share/doc/${PACKAGE}/README" <<EOF
 ${PACKAGE}
 
-Shared ROS1 VRPN client wrapper and Experiment localization projection.
-The projection maps source_root, mocap_rigid_body, robot_namespace, and
-publish_vision onto canonical topics, applies one explicit XYZ translation,
-preserves source stamps, passes twist/accel unchanged, and can bound
-vision_pose output to 30 Hz.
+Shared onboard ROS1 VRPN client wrapper and bounded vision relay.
+Experiment slot localization is owned by the FS150, Scout, and Mecanum
+ground-station Robot Adapters, not this package.
 
 Installed ROS package:
   xgc2_vrpn_relay
@@ -120,16 +115,14 @@ Installed-Size: ${installed_size}
 Maintainer: XGC2 <apt@example.com>
 Depends: python3
 Recommends: ros-melodic-vrpn-client-ros | ros-noetic-vrpn-client-ros, ros-melodic-geometry-msgs | ros-noetic-geometry-msgs, ros-melodic-rospy | ros-noetic-rospy
-Description: XGC2 shared VRPN relay and localization projection
- Reusable ROS1 VRPN client wrapper plus Experiment projection from
- source_root, mocap_rigid_body, robot_namespace, and publish_vision.
+Description: XGC2 shared onboard VRPN relay
+ Reusable ROS1 VRPN client wrapper and bounded onboard vision relay.
 EOF
 chmod 0644 "${pkg_root}/DEBIAN/control"
 
 find "${pkg_root}" -type d -exec chmod 0755 {} +
 chmod 0755 "${pkg_root}/DEBIAN"
 for prefix in "${ROS_PREFIXES[@]}"; do
-  chmod 0755 "${pkg_root}${prefix}/lib/xgc2_vrpn_relay/experiment_projection"
   chmod 0755 "${pkg_root}${prefix}/lib/xgc2_vrpn_relay/vrpn_relay"
 done
 

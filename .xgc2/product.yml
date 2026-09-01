@@ -1,9 +1,9 @@
 schema: xgc2.product.v1
 id: xgc2-vrpn-relay
 name: XGC2 VRPN Relay
-version: 0.1.0-9
+version: 0.1.0-10
 kind: ros1-apt
-summary: Shared ROS1 VRPN relay plus Experiment XYZ localization projection and bounded vision_pose output.
+summary: Shared onboard ROS1 VRPN relay and bounded vision_pose output.
 groups:
 - ros1
 - communication
@@ -38,18 +38,14 @@ usage:
     sudo apt install xgc2-vrpn-relay
 
     '
-  smoke_test: 'test -x /opt/ros/noetic/lib/xgc2_vrpn_relay/experiment_projection
-
-    test -x /opt/ros/noetic/lib/xgc2_vrpn_relay/vrpn_relay
+  smoke_test: 'test -x /opt/ros/noetic/lib/xgc2_vrpn_relay/vrpn_relay
 
     test -f /opt/ros/noetic/share/xgc2_vrpn_relay/launch/mocap.launch
 
     '
-  notes: 'Robots must not copy vrpn_relay. Experiment projection takes
-    source_root, mocap_rigid_body, robot_namespace, and publish_vision,
-    derives the only input/output topics, and applies explicit XYZ
-    translation plus a bounded vision rate. It does not align, interpolate,
-    repeat, fit clocks, switch sources, or accept explicit pose_in/out topics.
+  notes: 'This package is the explicit onboard relay assembly. XGC2 ground-station
+    FS150, Scout, and Mecanum localization is owned by their Robot Adapters;
+    this package must not publish Experiment slot canonical topics there.
 
     '
 ownership:
@@ -64,7 +60,7 @@ release:
   workflow: release.yml
   ci_workflow: ci.yml
   apt_versions:
-    bionic: 0.1.0-9
-    focal: 0.1.0-9
-    jammy: 0.1.0-9
-    noble: 0.1.0-9
+    bionic: 0.1.0-10
+    focal: 0.1.0-10
+    jammy: 0.1.0-10
+    noble: 0.1.0-10

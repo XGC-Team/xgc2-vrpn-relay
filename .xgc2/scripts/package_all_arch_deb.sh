@@ -31,13 +31,11 @@ mkdir -p "${share}/launch" "${lib}/xgc2_vrpn_relay" \
 cp -a "${SRC}/package.xml" "${share}/package.xml"
 cp -a "${SRC}/launch/"*.launch "${share}/launch/"
 cp -a "${SRC}/scripts/xgc2_vrpn_relay/"*.py "${lib}/xgc2_vrpn_relay/"
-cp -a "${SRC}/scripts/experiment_projection" "${lib}/experiment_projection"
 cp -a "${SRC}/scripts/vrpn_relay" "${lib}/vrpn_relay"
 if [[ "${ROS_DISTRO}" == "melodic" ]]; then
-  sed -i '1s|^#!.*|#!/usr/bin/env python|' "${lib}/experiment_projection"
   sed -i '1s|^#!.*|#!/usr/bin/env python|' "${lib}/vrpn_relay"
 fi
-chmod 0755 "${lib}/experiment_projection" "${lib}/vrpn_relay"
+chmod 0755 "${lib}/vrpn_relay"
 
 cat > "${pkg_root}/DEBIAN/control" <<EOF
 Package: ${PACKAGE}

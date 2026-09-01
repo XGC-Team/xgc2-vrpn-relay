@@ -62,9 +62,7 @@ import ast
 from pathlib import Path
 root = Path("/workspace/src")
 for path in (
-    root / "xgc2_vrpn_relay/scripts/experiment_projection",
     root / "xgc2_vrpn_relay/scripts/vrpn_relay",
-    root / "xgc2_vrpn_relay/scripts/xgc2_vrpn_relay/projection.py",
     root / "xgc2_vrpn_relay/scripts/xgc2_vrpn_relay/quality.py",
     root / "xgc2_vrpn_relay/scripts/xgc2_vrpn_relay/rate.py",
     root / ".xgc2/scripts/xgc2_artifact_manifest.py",
@@ -76,7 +74,6 @@ PY
     python3 /workspace/src/xgc2_vrpn_relay/test/test_quality.py
     python3 /workspace/src/xgc2_vrpn_relay/test/test_rate.py
     python3 /workspace/src/xgc2_vrpn_relay/test/test_offset.py
-    python3 /workspace/src/xgc2_vrpn_relay/test/test_projection.py
     /workspace/src/.xgc2/scripts/package_debs.sh --output-dir /workspace/out
     shopt -s nullglob
     built_debs=(/workspace/out/*.deb)

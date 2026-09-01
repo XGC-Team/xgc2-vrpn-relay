@@ -4,7 +4,7 @@
 Every robot: pose / twist / accel, one-for-one after a quality gate.
 PX4 only: also publish /mavros/vision_pose/pose.
 
-Vision rate (target 30 Hz):
+Vision rate (target 30 Hz, XGC1 window drop):
   incoming faster  -> decide per frame, publish immediately or drop
   incoming slower  -> publish every accepted frame; no zero-order hold
 
@@ -25,7 +25,7 @@ if _HERE not in sys.path:
 
 from xgc2_vrpn_relay.offset import apply_world_offset, compute_align_offset
 from xgc2_vrpn_relay.quality import evaluate_pose, is_finite
-from xgc2_vrpn_relay.rate import should_emit_vision
+from xgc2_vrpn_relay.rate import remember_vision_emit, should_emit_vision
 
 
 def _xyz(point):
@@ -65,7 +65,7 @@ def main():
     )
     state = {
         "last_ok": None,
-        "last_vision": None,
+        "last_vision": [],
         "last_move": None,
         "aligned": not align_xy,
         "dx": offset_x,
@@ -143,7 +143,7 @@ def main():
         if vision_pub is None:
             return
         if should_emit_vision(now_s, state["last_vision"], target_hz):
-            state["last_vision"] = now_s
+            remember_vision_emit(now_s, state["last_vision"])
             vision_pub.publish(msg)
 
     def on_twist(msg):
