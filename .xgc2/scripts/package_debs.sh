@@ -82,6 +82,7 @@ for prefix in "${ROS_PREFIXES[@]}"; do
   install -m 0755 "${src}/scripts/vrpn_relay" "${lib}/vrpn_relay"
   install -m 0644 \
     "${src}/scripts/xgc2_vrpn_relay/__init__.py" \
+    "${src}/scripts/xgc2_vrpn_relay/offset.py" \
     "${src}/scripts/xgc2_vrpn_relay/quality.py" \
     "${src}/scripts/xgc2_vrpn_relay/rate.py" \
     "${lib}/xgc2_vrpn_relay/"
