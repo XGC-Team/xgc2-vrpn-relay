@@ -88,6 +88,19 @@ for prefix in /opt/ros/melodic /opt/ros/noetic; do
   test -x "${tmp_dir}/root${prefix}/lib/xgc2_vrpn_relay/vrpn_relay"
   test -f "${tmp_dir}/root${prefix}/lib/xgc2_vrpn_relay/xgc2_vrpn_relay/quality.py"
   test -f "${tmp_dir}/root${prefix}/lib/xgc2_vrpn_relay/xgc2_vrpn_relay/rate.py"
+  # Every helper module the installed relay imports must be shipped next to it.
+  relay_modules="$(sed -n 's/^from xgc2_vrpn_relay\.\([A-Za-z_][A-Za-z0-9_]*\) import .*/\1/p' \
+    "${tmp_dir}/root${prefix}/lib/xgc2_vrpn_relay/vrpn_relay")"
+  if [[ -z "${relay_modules}" ]]; then
+    echo "vrpn_relay imports no xgc2_vrpn_relay helper module" >&2
+    exit 1
+  fi
+  for module in ${relay_modules}; do
+    if [[ ! -f "${tmp_dir}/root${prefix}/lib/xgc2_vrpn_relay/xgc2_vrpn_relay/${module}.py" ]]; then
+      echo "vrpn_relay imports xgc2_vrpn_relay.${module}, which ${prefix} does not ship" >&2
+      exit 1
+    fi
+  done
   test -f "${tmp_dir}/root${prefix}/share/xgc2_vrpn_relay/package.xml"
   test -f "${tmp_dir}/root${prefix}/share/xgc2_vrpn_relay/launch/vrpn.launch"
   test -f "${tmp_dir}/root${prefix}/share/xgc2_vrpn_relay/launch/mocap.launch"
