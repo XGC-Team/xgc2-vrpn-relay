@@ -60,7 +60,11 @@ PY
   return 1
 }
 
-rm -rf "${WORK_DIR}"
+# The directory is used after cd and in the environment of the tests: make it absolute.
+mkdir -p "${WORK_DIR}"
+WORK_DIR="$(cd "${WORK_DIR}" && pwd)"
+rm -rf "${WORK_DIR}/core-build" "${WORK_DIR}/src" "${WORK_DIR}/build" "${WORK_DIR}/devel" \
+  "${WORK_DIR}/install" "${WORK_DIR}/ros_home"
 mkdir -p "${WORK_DIR}/ros_home" "${WORK_DIR}/src"
 
 # 1. The core alone: no catkin, and nothing in the build knows where ROS is.

@@ -53,6 +53,11 @@ for package in cmake fakeroot dpkg-dev rsync \
   fi
 done
 
+# Both are used after cd and by other scripts: make them absolute.
+mkdir -p "${WORK_DIR}" "${OUTPUT_DIR}"
+WORK_DIR="$(cd "${WORK_DIR}" && pwd)"
+OUTPUT_DIR="$(cd "${OUTPUT_DIR}" && pwd)"
+
 export ROS_DISTRO
 "${SCRIPT_DIR}/run_source_tests.sh" --ros-distro "${ROS_DISTRO}" --jobs "${JOBS}" \
   --work-dir "${WORK_DIR}/tests"

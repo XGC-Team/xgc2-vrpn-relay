@@ -53,6 +53,8 @@ fi
   clang-format --dry-run --Werror "${FORMAT_FILES[@]}"
 )
 
+mkdir -p "${WORK_DIR}"
+WORK_DIR="$(cd "${WORK_DIR}" && pwd)"
 src_dir="${WORK_DIR}/src/xgc2-vrpn-relay"
 build_dir="${WORK_DIR}/build"
 rm -rf "${WORK_DIR}/src" "${build_dir}" "${WORK_DIR}/devel"
