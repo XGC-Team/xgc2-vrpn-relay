@@ -1,21 +1,17 @@
 #!/usr/bin/env bash
+# Package an installed catkin tree as ros-<distro>-xgc2-vrpn-relay for one ROS distro.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-PACKAGE="xgc2-vrpn-relay"
-ARCHITECTURE="${ARCHITECTURE:-all}"
+INSTALL_ROOT=""
 OUTPUT_DIR=""
-ROS_PREFIXES=(/opt/ros/melodic /opt/ros/noetic)
-
-usage() {
-  cat <<EOF
-Usage: ${0##*/} --output-dir DIR
-
-Build the ${PACKAGE} Debian package (Architecture: all).
-EOF
-}
+ROS_DISTRO="${ROS_DISTRO:-noetic}"
+ROS_PACKAGE="xgc2_vrpn_relay"
+# Before 0.2.0 the relay was one Architecture: all Python package for every distro.
+LEGACY_PACKAGE="xgc2-vrpn-relay"
+LEGACY_BOUNDARY="0.2.0"
 
 product_version() {
   # mawk (bionic) does not implement POSIX [[:space:]].
@@ -24,40 +20,46 @@ product_version() {
 
 VERSION="${PACKAGE_VERSION:-$(product_version)}"
 if [[ -z "${VERSION}" ]]; then
-  echo "cannot read version from .xgc2/product.yml" >&2
+  echo "package version is missing; set PACKAGE_VERSION or .xgc2/product.yml version" >&2
   exit 1
 fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --install-root)
+      INSTALL_ROOT="$2"
+      shift 2
+      ;;
     --output-dir)
       OUTPUT_DIR="$2"
       shift 2
       ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
     *)
       echo "unknown argument: $1" >&2
-      usage >&2
-      exit 2
+      exit 1
       ;;
   esac
 done
 
-if [[ -z "${OUTPUT_DIR}" ]]; then
-  echo "--output-dir is required" >&2
-  usage >&2
-  exit 2
-fi
-
-if [[ -z "${VERSION}" ]]; then
-  echo "package version is missing" >&2
+if [[ -z "${INSTALL_ROOT}" || -z "${OUTPUT_DIR}" ]]; then
+  echo "--install-root and --output-dir are required" >&2
   exit 1
 fi
 
+case "${ROS_DISTRO}" in
+  melodic|noetic) ;;
+  *)
+    echo "unsupported ROS distro: ${ROS_DISTRO}" >&2
+    exit 1
+    ;;
+esac
+
+ARCH="$(dpkg --print-architecture)"
+PACKAGE="ros-${ROS_DISTRO}-xgc2-vrpn-relay"
+PREFIX="/opt/ros/${ROS_DISTRO}"
+PREFIX_ROOT="${INSTALL_ROOT}${PREFIX}"
 BUILD_DIR="$(mktemp -d)"
+
 cleanup() {
   rm -rf "${BUILD_DIR}"
 }
@@ -67,67 +69,69 @@ mkdir -p "${OUTPUT_DIR}"
 rm -f "${OUTPUT_DIR}/${PACKAGE}_"*.deb
 
 pkg_root="${BUILD_DIR}/${PACKAGE}"
-mkdir -p \
-  "${pkg_root}/DEBIAN" \
-  "${pkg_root}/usr/share/doc/${PACKAGE}"
+mkdir -p "${pkg_root}/DEBIAN" "${pkg_root}/usr/share/doc/${PACKAGE}"
 
-src="${REPO_ROOT}/xgc2_vrpn_relay"
-for prefix in "${ROS_PREFIXES[@]}"; do
-  share="${pkg_root}${prefix}/share/xgc2_vrpn_relay"
-  lib="${pkg_root}${prefix}/lib/xgc2_vrpn_relay"
-  mkdir -p "${share}/launch" "${lib}/xgc2_vrpn_relay"
-  install -m 0644 "${src}/package.xml" "${share}/package.xml"
-  install -m 0644 "${src}/launch/vrpn.launch" "${share}/launch/vrpn.launch"
-  install -m 0644 "${src}/launch/mocap.launch" "${share}/launch/mocap.launch"
-  install -m 0755 "${src}/scripts/vrpn_relay" "${lib}/vrpn_relay"
-  install -m 0644 \
-    "${src}/scripts/xgc2_vrpn_relay/__init__.py" \
-    "${src}/scripts/xgc2_vrpn_relay/offset.py" \
-    "${src}/scripts/xgc2_vrpn_relay/quality.py" \
-    "${src}/scripts/xgc2_vrpn_relay/rate.py" \
-    "${lib}/xgc2_vrpn_relay/"
-done
+copy_path() {
+  local src="$1"
+  if [[ ! -e "${src}" ]]; then
+    echo "missing installed path: ${src#"${INSTALL_ROOT}"}" >&2
+    exit 1
+  fi
+  mkdir -p "${pkg_root}$(dirname "${src#"${INSTALL_ROOT}"}")"
+  cp -a "${src}" "${pkg_root}${src#"${INSTALL_ROOT}"}"
+}
 
-cat > "${pkg_root}/usr/share/doc/${PACKAGE}/README" <<EOF
-${PACKAGE}
+# The node, its launch files, and the linkable core: library, headers and CMake config.
+copy_path "${PREFIX_ROOT}/share/${ROS_PACKAGE}"
+copy_path "${PREFIX_ROOT}/lib/${ROS_PACKAGE}"
+copy_path "${PREFIX_ROOT}/lib/libxgc2_vrpn_relay_core.a"
+copy_path "${PREFIX_ROOT}/include/${ROS_PACKAGE}"
+copy_path "${PREFIX_ROOT}/share/cmake/xgc2_vrpn_relay_core"
 
-Shared onboard ROS1 VRPN client wrapper and bounded vision relay.
-Experiment slot localization is owned by the FS150, Scout, and Mecanum
-ground-station Robot Adapters, not this package.
+if [[ ! -x "${pkg_root}${PREFIX}/lib/${ROS_PACKAGE}/vrpn_relay" ]]; then
+  echo "packaged vrpn_relay node is not executable" >&2
+  exit 1
+fi
 
-Installed ROS package:
-  xgc2_vrpn_relay
-
-Prefixes:
-  /opt/ros/melodic
-  /opt/ros/noetic
-EOF
-chmod 0644 "${pkg_root}/usr/share/doc/${PACKAGE}/README"
-
-installed_size="$(du -sk "${pkg_root}" | awk '{print $1}')"
 cat > "${pkg_root}/DEBIAN/control" <<EOF
 Package: ${PACKAGE}
 Version: ${VERSION}
 Section: misc
 Priority: optional
-Architecture: ${ARCHITECTURE}
-Installed-Size: ${installed_size}
-Maintainer: XGC2 <apt@example.com>
-Depends: python3
-Recommends: ros-melodic-vrpn-client-ros | ros-noetic-vrpn-client-ros, ros-melodic-geometry-msgs | ros-noetic-geometry-msgs, ros-melodic-rospy | ros-noetic-rospy
-Description: XGC2 shared onboard VRPN relay
- Reusable ROS1 VRPN client wrapper and bounded onboard vision relay.
+Architecture: ${ARCH}
+Maintainer: XGC2 <lxk36@users.noreply.github.com>
+Depends: ros-${ROS_DISTRO}-roscpp, ros-${ROS_DISTRO}-geometry-msgs, ros-${ROS_DISTRO}-roslaunch
+Recommends: ros-${ROS_DISTRO}-vrpn-client-ros
+Replaces: ${LEGACY_PACKAGE} (<< ${LEGACY_BOUNDARY})
+Breaks: ${LEGACY_PACKAGE} (<< ${LEGACY_BOUNDARY})
+Description: XGC2 onboard VRPN relay for ROS ${ROS_DISTRO}
+ Relays one VRPN rigid body onto local pose, twist and acceleration topics
+ after a quality gate, applies a fixed or first-frame XY offset, and can
+ publish a rate-limited PX4 vision pose. Also ships the ROS-free core library
+ of that logic (libxgc2_vrpn_relay_core, headers and a CMake config).
 EOF
-chmod 0644 "${pkg_root}/DEBIAN/control"
+
+cat > "${pkg_root}/usr/share/doc/${PACKAGE}/README" <<EOF
+${PACKAGE}
+
+ROS package:
+  ${ROS_PACKAGE}
+
+Node:
+  ${PREFIX}/lib/${ROS_PACKAGE}/vrpn_relay
+
+Launch files:
+  ${PREFIX}/share/${ROS_PACKAGE}/launch/mocap.launch
+  ${PREFIX}/share/${ROS_PACKAGE}/launch/vrpn.launch
+
+Core library for other products:
+  find_package(xgc2_vrpn_relay_core CONFIG REQUIRED)
+  target_link_libraries(<target> PRIVATE xgc2_vrpn_relay_core::core)
+EOF
 
 find "${pkg_root}" -type d -exec chmod 0755 {} +
-chmod 0755 "${pkg_root}/DEBIAN"
-for prefix in "${ROS_PREFIXES[@]}"; do
-  chmod 0755 "${pkg_root}${prefix}/lib/xgc2_vrpn_relay/vrpn_relay"
-done
+find "${pkg_root}" -type f -exec chmod 0644 {} +
+chmod 0755 "${pkg_root}${PREFIX}/lib/${ROS_PACKAGE}/vrpn_relay"
 
-fakeroot dpkg-deb --build \
-  "${pkg_root}" \
-  "${OUTPUT_DIR}/${PACKAGE}_${VERSION}_all.deb" >/dev/null
-
-find "${OUTPUT_DIR}" -maxdepth 1 -type f -name '*.deb' -print | sort
+fakeroot dpkg-deb --build "${pkg_root}" "${OUTPUT_DIR}/${PACKAGE}_${VERSION}_${ARCH}.deb" >/dev/null
+find "${OUTPUT_DIR}" -maxdepth 1 -type f -name "${PACKAGE}_*.deb" -print | sort

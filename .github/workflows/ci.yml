@@ -29,63 +29,106 @@ jobs:
           git diff --check HEAD
           bash -n .xgc2/scripts/*.sh
           python3 .xgc2/scripts/check-workflow-bootstrap.py
-          python3 -m py_compile \
-            xgc2_vrpn_relay/scripts/vrpn_relay \
-            xgc2_vrpn_relay/scripts/xgc2_vrpn_relay/quality.py \
-            xgc2_vrpn_relay/scripts/xgc2_vrpn_relay/rate.py \
-            xgc2_vrpn_relay/scripts/xgc2_vrpn_relay/offset.py
-          python3 xgc2_vrpn_relay/test/test_quality.py
-          python3 xgc2_vrpn_relay/test/test_rate.py
-          python3 xgc2_vrpn_relay/test/test_offset.py
           python3 - <<'PY'
+          import re
           import xml.etree.ElementTree as ET
           from pathlib import Path
-          ET.parse("xgc2_vrpn_relay/package.xml")
+
+          package_version = ET.parse("xgc2_vrpn_relay/package.xml").getroot().findtext("version")
           for launch in Path("xgc2_vrpn_relay/launch").glob("*.launch"):
               ET.parse(launch)
               print("parsed", launch)
+          ET.parse("xgc2_vrpn_relay/test/vrpn_relay.test")
           text = Path(".xgc2/product.yml").read_text()
           assert "id: xgc2-vrpn-relay" in text
-          assert "version: 0.1.0-12" in text
+          version = re.search(r"^version:\s*(\S+)", text, re.MULTILINE).group(1)
+          assert version.rsplit("-", 1)[0] == package_version, (version, package_version)
+          for distribution in ("bionic", "focal"):
+              assert re.search(rf"^    {distribution}: {re.escape(version)}$", text, re.MULTILINE)
           PY
-  build:
-    name: all-arch
+  cpp-quality:
+    name: cpp-quality
     runs-on: ubuntu-latest
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@v4
-      - name: "Build the single Architecture: all deb"
+      - name: Run the C++ quality gate in the build image
         run: |
           set -euo pipefail
-          .xgc2/scripts/ci_in_image.sh \
-            --image ghcr.io/xgc-team/xgc2-images/xgc2-build-focal-ros-noetic:1.0.0 \
+          image=ghcr.io/xgc-team/xgc2-images/xgc2-build-focal-ros-noetic:1.0.0
+          docker pull "${image}"
+          docker run --rm --network none \
+            -v "$GITHUB_WORKSPACE:/workspace/repo" \
+            "${image}" \
+            bash -lc '
+              set -euo pipefail
+              for pkg in clang-format clang-tidy rsync ros-noetic-roscpp ros-noetic-rostest; do
+                dpkg -s "${pkg}" >/dev/null
+              done
+              cd /workspace/repo
+              ROS_DISTRO=noetic .xgc2/scripts/check_cpp_quality.sh --work-dir /tmp/xgc2-vrpn-relay-cpp-quality
+            '
+  build:
+    name: ${{ matrix.ros_distro }} deb (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ros_distro: melodic
+            distribution: bionic
+            arch: amd64
+            runner: ubuntu-latest
+            image: ghcr.io/xgc-team/xgc2-images/xgc2-build-bionic-ros-melodic:1.0.0
+          - ros_distro: melodic
+            distribution: bionic
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            image: ghcr.io/xgc-team/xgc2-images/xgc2-build-bionic-ros-melodic:1.0.0
+          - ros_distro: noetic
+            distribution: focal
+            arch: amd64
+            runner: ubuntu-latest
+            image: ghcr.io/xgc-team/xgc2-images/xgc2-build-focal-ros-noetic:1.0.0
+          - ros_distro: noetic
+            distribution: focal
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            image: ghcr.io/xgc-team/xgc2-images/xgc2-build-focal-ros-noetic:1.0.0
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test, build and install-check the deb
+        run: |
+          set -euo pipefail
+          .xgc2/scripts/build_debs_in_docker.sh \
+            --ros-distro "${{ matrix.ros_distro }}" \
+            --image "${{ matrix.image }}" \
+            --work-dir "$RUNNER_TEMP/xgc2-vrpn-relay-${{ matrix.ros_distro }}-${{ matrix.arch }}" \
             --output-dir "$GITHUB_WORKSPACE/debs"
-      - name: Create trusted manifests for every suite
+      - name: Create trusted build manifest
         run: |
           set -euo pipefail
-          product_version="$(awk '/^version:/ {print $2; exit}' .xgc2/product.yml)"
-          for pair in bionic/amd64 bionic/arm64 focal/amd64 focal/arm64 \
-                      jammy/amd64 jammy/arm64 noble/amd64 noble/arm64; do
-            distro="${pair%/*}"
-            arch="${pair#*/}"
-            python3 .xgc2/scripts/xgc2_artifact_manifest.py build \
-              --deb-dir debs \
-              --output-dir .ci/build-manifests \
-              --product xgc2-vrpn-relay \
-              --product-version "$product_version" \
-              --distribution "${distro}" \
-              --architecture "${arch}" \
-              --source-sha "$GITHUB_SHA" \
-              --ci-run-id "$GITHUB_RUN_ID" \
-              --ci-workflow "$GITHUB_WORKFLOW" \
-              --ci-workflow-ref "$GITHUB_WORKFLOW_REF"
-          done
+          product_version="$(awk -F': *' '/^version:/ {print $2; exit}' .xgc2/product.yml)"
+          python3 .xgc2/scripts/xgc2_artifact_manifest.py build \
+            --deb-dir debs \
+            --output-dir .ci/build-manifests \
+            --product xgc2-vrpn-relay \
+            --product-version "$product_version" \
+            --distribution "${{ matrix.distribution }}" \
+            --architecture "${{ matrix.arch }}" \
+            --source-sha "$GITHUB_SHA" \
+            --ci-run-id "$GITHUB_RUN_ID" \
+            --ci-workflow "$GITHUB_WORKFLOW" \
+            --ci-workflow-ref "$GITHUB_WORKFLOW_REF"
       - name: Upload deb artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: xgc2-vrpn-relay-all
+          name: xgc2-vrpn-relay-debs-${{ matrix.ros_distro }}-${{ matrix.arch }}
           path: |
             debs/*.deb
             .ci/build-manifests/*.json

@@ -1,9 +1,9 @@
 schema: xgc2.product.v1
 id: xgc2-vrpn-relay
 name: XGC2 VRPN Relay
-version: 0.1.0-12
+version: 0.2.0-1
 kind: ros1-apt
-summary: Shared onboard ROS1 VRPN relay and bounded vision_pose output.
+summary: Shared onboard ROS1 VRPN relay with a quality gate and a bounded vision_pose output, plus its ROS-free core library.
 groups:
 - ros1
 - communication
@@ -14,53 +14,60 @@ ros:
   packages:
   - xgc2_vrpn_relay
 apt:
-  distribution: bionic,focal,jammy,noble
+  distribution: bionic,focal
   install:
-  - xgc2-vrpn-relay
+  - ros-melodic-xgc2-vrpn-relay
+  - ros-noetic-xgc2-vrpn-relay
+  package_distributions:
+    ros-melodic-xgc2-vrpn-relay:
+    - bionic
+    ros-noetic-xgc2-vrpn-relay:
+    - focal
   packages:
-  - xgc2-vrpn-relay
-  package_architectures:
-    xgc2-vrpn-relay:
-    - amd64
-    - arm64
+  - ros-melodic-xgc2-vrpn-relay
+  - ros-noetic-xgc2-vrpn-relay
   depends:
-  - python3
+  - ros-melodic-geometry-msgs
+  - ros-melodic-roscpp
+  - ros-melodic-roslaunch
+  - ros-noetic-geometry-msgs
+  - ros-noetic-roscpp
+  - ros-noetic-roslaunch
   recommends:
   - ros-melodic-vrpn-client-ros
   - ros-noetic-vrpn-client-ros
-  - ros-melodic-geometry-msgs
-  - ros-noetic-geometry-msgs
-  - ros-melodic-rospy
-  - ros-noetic-rospy
 usage:
-  install: 'sudo apt update
-
-    sudo apt install xgc2-vrpn-relay
-
-    '
-  smoke_test: 'test -x /opt/ros/noetic/lib/xgc2_vrpn_relay/vrpn_relay
-
-    test -f /opt/ros/noetic/share/xgc2_vrpn_relay/launch/mocap.launch
-
-    '
-  notes: 'This package is the explicit onboard relay assembly. XGC2 ground-station
+  install: |
+    sudo apt update
+    sudo apt install ros-melodic-xgc2-vrpn-relay
+    sudo apt install ros-noetic-xgc2-vrpn-relay
+  smoke_test: |
+    rospack find xgc2_vrpn_relay
+    roslaunch --files xgc2_vrpn_relay mocap.launch
+  notes: |
+    This package is the explicit onboard relay assembly. XGC2 ground-station
     FS150, Scout, and Mecanum localization is owned by their Robot Adapters;
     this package must not publish Experiment slot canonical topics there.
-
-    '
+    It replaces the Architecture: all Python package xgc2-vrpn-relay (< 0.2.0).
+    The same package carries the ROS-free core library for other products:
+    find_package(xgc2_vrpn_relay_core CONFIG) and xgc2_vrpn_relay_core::core.
 ownership:
   paths:
   - /opt/ros/melodic/share/xgc2_vrpn_relay
   - /opt/ros/melodic/lib/xgc2_vrpn_relay
+  - /opt/ros/melodic/include/xgc2_vrpn_relay
+  - /opt/ros/melodic/lib/libxgc2_vrpn_relay_core.a
+  - /opt/ros/melodic/share/cmake/xgc2_vrpn_relay_core
   - /opt/ros/noetic/share/xgc2_vrpn_relay
   - /opt/ros/noetic/lib/xgc2_vrpn_relay
+  - /opt/ros/noetic/include/xgc2_vrpn_relay
+  - /opt/ros/noetic/lib/libxgc2_vrpn_relay_core.a
+  - /opt/ros/noetic/share/cmake/xgc2_vrpn_relay_core
 release:
   repository: XGC-Team/xgc2-vrpn-relay
   ref: main
   workflow: release.yml
   ci_workflow: ci.yml
   apt_versions:
-    bionic: 0.1.0-12
-    focal: 0.1.0-12
-    jammy: 0.1.0-12
-    noble: 0.1.0-12
+    bionic: 0.2.0-1
+    focal: 0.2.0-1
