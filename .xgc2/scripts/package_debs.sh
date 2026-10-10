@@ -103,7 +103,6 @@ Prefixes:
   /opt/ros/noetic
 EOF
 chmod 0644 "${pkg_root}/usr/share/doc/${PACKAGE}/README"
-install -m 0644 "${REPO_ROOT}/LICENSE" "${pkg_root}/usr/share/doc/${PACKAGE}/copyright"
 
 installed_size="$(du -sk "${pkg_root}" | awk '{print $1}')"
 cat > "${pkg_root}/DEBIAN/control" <<EOF
