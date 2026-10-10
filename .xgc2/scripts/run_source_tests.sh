@@ -95,4 +95,14 @@ catkin_make -j"${JOBS}" run_tests_xgc2_vrpn_relay \
   -DCATKIN_ENABLE_TESTING=ON
 catkin_test_results build/test_results
 
+# mocap.launch hands jump_reacquire_s to the node, with the node's default as its default.
+set +u
+# shellcheck disable=SC1091
+source devel/setup.bash
+set -u
+launch_params="$(roslaunch --dump-params xgc2_vrpn_relay mocap.launch)"
+grep -Eq '^/vrpn_relay/jump_reacquire_s: 1\.0$' <<<"${launch_params}"
+launch_params="$(roslaunch --dump-params xgc2_vrpn_relay mocap.launch jump_reacquire_s:=0)"
+grep -Eq '^/vrpn_relay/jump_reacquire_s: 0$' <<<"${launch_params}"
+
 echo "Source tests passed"

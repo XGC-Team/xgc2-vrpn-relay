@@ -99,9 +99,15 @@ offset stays what it was, so the output jumps by the distance the raw pose
 jumped, and frozen detection starts again from that frame. The first second
 of the new track is not published. A glitch that stays put for the whole
 `jump_reacquire_s` looks like a body that was found again and is taken over
-too: that is the price of not needing a restart. `jump_reacquire_s:=0`
-switches this off and keeps a jump rejected until the pose comes back within
+too: that is the price of not needing a restart. `mocap.launch` takes the
+parameter as an argument (`jump_reacquire_s:=0`); 0 switches the
+re-acquisition off and keeps a jump rejected until the pose comes back within
 `max_jump_m`.
+
+A consumer sees the takeover as a step in the position. A robot whose
+estimator cannot take such a step (a PX4 vehicle fed by the vision pose is
+the example) decides for itself whether to run with the default or to pass 0
+from its own launch file; the FS150 assembly passes 0 today.
 
 ### Offset and alignment
 
@@ -141,7 +147,7 @@ marked with a star.
 | `max_abs_xy` | `900.0` | quality gate [m] |
 | `max_jump_m` | `2.0` | quality gate [m] |
 | `frozen_s` | `0.5` | quality gate [s] |
-| `jump_reacquire_s` | `1.0` | take over a track that jumped and stays this long [s]; 0 or less never does |
+| `jump_reacquire_s` ★ | `1.0` | take over a track that jumped and stays this long [s]; 0 or less never does |
 | `offset_x` `offset_y` `offset_z` ★ | `0.0` | fixed translation [m] |
 | `align_xy` ★ | `false` | first-frame XY alignment |
 | `align_to_x` `align_to_y` ★ | `0.0` | alignment target [m] |

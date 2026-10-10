@@ -14,6 +14,9 @@
   <arg name="align_xy" default="false" />
   <arg name="align_to_x" default="0.0" />
   <arg name="align_to_y" default="0.0" />
+  <!-- A track that jumped and stays is taken over after this long [s]; 0 keeps a jump rejected
+       until the pose is back. -->
+  <arg name="jump_reacquire_s" default="1.0" />
 
   <include file="$(find xgc2_vrpn_relay)/launch/vrpn.launch">
     <arg name="server" value="$(arg server)" />
@@ -34,5 +37,6 @@
     <param name="align_xy" value="$(arg align_xy)" />
     <param name="align_to_x" value="$(arg align_to_x)" />
     <param name="align_to_y" value="$(arg align_to_y)" />
+    <param name="jump_reacquire_s" value="$(arg jump_reacquire_s)" />
   </node>
 </launch>
