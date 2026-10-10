@@ -73,14 +73,15 @@ private:
     std::vector<Message> messages_;
 };
 
-// The fake VRPN client of one tracker.
+// The fake VRPN client of one tracker. Like vrpn_client_ros, it publishes the acceleration as a
+// TwistStamped.
 class FakeTracker {
 public:
     FakeTracker(ros::NodeHandle& nh, const std::string& pose_topic, const std::string& twist_topic,
                 const std::string& accel_topic) {
         pose_ = nh.advertise<geometry_msgs::PoseStamped>(pose_topic, 10);
         twist_ = nh.advertise<geometry_msgs::TwistStamped>(twist_topic, 10);
-        accel_ = nh.advertise<geometry_msgs::AccelStamped>(accel_topic, 10);
+        accel_ = nh.advertise<geometry_msgs::TwistStamped>(accel_topic, 10);
     }
 
     FakeTracker(ros::NodeHandle& nh, const std::string& tracker)
@@ -116,13 +117,15 @@ public:
     }
 
     void publishAccel(double ax, double wz, const ros::Time& stamp = ros::Time::now()) {
-        geometry_msgs::AccelStamped message;
+        geometry_msgs::TwistStamped message;
         message.header.stamp = stamp;
         message.header.frame_id = "world";
-        message.accel.linear.x = ax;
-        message.accel.angular.z = wz;
+        message.twist.linear.x = ax;
+        message.twist.angular.z = wz;
         accel_.publish(message);
     }
+
+    void publishAccel(const geometry_msgs::TwistStamped& message) { accel_.publish(message); }
 
 private:
     ros::Publisher pose_;
@@ -196,7 +199,16 @@ TEST(VrpnRelay, ForwardsPoseTwistAndAccelOneForOne) {
     // Not a unit quaternion: the relay normalizes it.
     ASSERT_TRUE(rig.relayed(1.0, 2.0, 0.5, 2.0, stamp));
     rig.tracker.publishTwist(0.25, -0.5, stamp);
-    rig.tracker.publishAccel(0.75, 1.5, stamp);
+    geometry_msgs::TwistStamped accel_in;
+    accel_in.header.stamp = stamp;
+    accel_in.header.frame_id = "world";
+    accel_in.twist.linear.x = 0.75;
+    accel_in.twist.linear.y = -0.25;
+    accel_in.twist.linear.z = 0.5;
+    accel_in.twist.angular.x = 0.125;
+    accel_in.twist.angular.y = -0.0625;
+    accel_in.twist.angular.z = 1.5;
+    rig.tracker.publishAccel(accel_in);
     ASSERT_TRUE(rig.twist.waitForCount(1));
     ASSERT_TRUE(rig.accel.waitForCount(1));
     ASSERT_TRUE(rig.vision->waitForCount(1));
@@ -220,9 +232,16 @@ TEST(VrpnRelay, ForwardsPoseTwistAndAccelOneForOne) {
     EXPECT_DOUBLE_EQ(twist.twist.linear.x, 0.25);
     EXPECT_DOUBLE_EQ(twist.twist.angular.z, -0.5);
 
+    // The client's accel TwistStamped comes out as an AccelStamped: linear to linear, angular to
+    // angular, header copied.
     const geometry_msgs::AccelStamped accel = rig.accel.at(0);
     EXPECT_EQ(accel.header.stamp, stamp);
+    EXPECT_EQ(accel.header.frame_id, "world");
     EXPECT_DOUBLE_EQ(accel.accel.linear.x, 0.75);
+    EXPECT_DOUBLE_EQ(accel.accel.linear.y, -0.25);
+    EXPECT_DOUBLE_EQ(accel.accel.linear.z, 0.5);
+    EXPECT_DOUBLE_EQ(accel.accel.angular.x, 0.125);
+    EXPECT_DOUBLE_EQ(accel.accel.angular.y, -0.0625);
     EXPECT_DOUBLE_EQ(accel.accel.angular.z, 1.5);
 }
 

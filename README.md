@@ -97,7 +97,8 @@ replaced by the time the message was received. Frozen detection and the
 vision rate use the receipt time of each message, not the time the callback
 ran, so a busy node is not mistaken for a frozen tracker. `vrpn.launch` sets
 `use_server_time:=false`, so the client stamps messages with the ROS time it
-received them. Twist and accel are forwarded unchanged.
+received them. Twist is forwarded unchanged; accel keeps its header (see
+below).
 
 ### Parameters
 
@@ -108,7 +109,7 @@ marked with a star.
 | --- | --- | --- |
 | `tracker` ★ | `tracker` | rigid body name, used to build the input topics |
 | `vrpn_prefix` | `/vrpn_client_node` | client namespace |
-| `pose_in` `twist_in` `accel_in` | `<vrpn_prefix>/<tracker>/pose` … | input topics (`PoseStamped`, `TwistStamped`, `AccelStamped`) |
+| `pose_in` `twist_in` `accel_in` | `<vrpn_prefix>/<tracker>/pose` … | input topics (`PoseStamped`, `TwistStamped`, and `TwistStamped` for accel, as `vrpn_client_ros` publishes it) |
 | `pose_out` `twist_out` `accel_out` ★ | `/pose` `/twist` `/accel` | output topics |
 | `vision_out` ★ | empty (off) | PX4 vision pose topic, e.g. `/mavros/vision_pose/pose` |
 | `vision_target_hz` ★ | `30.0` | vision pose rate; 0 or less sends every accepted frame |
@@ -123,11 +124,13 @@ marked with a star.
 A parameter of the wrong type, or a number that is not finite, stops the
 node at start with an error.
 
-Known limit: the accel input is `geometry_msgs/AccelStamped`, but the Noetic
-`vrpn_client_ros` 0.2.2 advertises its `accel` topic as
-`geometry_msgs/TwistStamped` (`rostopic type` shows it). The client then
-refuses the relay's accel subscription as a type mismatch, and `/accel`
-stays silent. Pose and twist are not affected.
+Acceleration: `vrpn_client_ros` publishes `<tracker>/accel` as a
+`geometry_msgs/TwistStamped` whose `linear` is the linear and `angular` the
+angular acceleration. The relay subscribes to it as that type and publishes
+`accel_out` as a `geometry_msgs/AccelStamped` with the header copied and
+`linear` and `angular` mapped one to one. A source that publishes
+`AccelStamped` on `accel_in` is refused as a type mismatch. As for the twist,
+a non-finite value drops the message.
 
 ### Lifecycle
 

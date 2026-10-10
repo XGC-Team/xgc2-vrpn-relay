@@ -124,10 +124,6 @@ core::Motion toCore(const geometry_msgs::Twist& value) {
     return core::Motion{toCore(value.linear), toCore(value.angular)};
 }
 
-core::Motion toCore(const geometry_msgs::Accel& value) {
-    return core::Motion{toCore(value.linear), toCore(value.angular)};
-}
-
 void toRos(const core::Pose& value, geometry_msgs::Pose* out) {
     out->position.x = value.position.x;
     out->position.y = value.position.y;
@@ -193,12 +189,18 @@ private:
         twist_pub_.publish(message);
     }
 
-    void onAccel(const geometry_msgs::AccelStamped::ConstPtr& message) {
-        if (!core::isFinite(toCore(message->accel))) {
+    // vrpn_client_ros publishes the acceleration as a TwistStamped (linear and angular
+    // acceleration in the twist fields); it goes out as the AccelStamped it is.
+    void onAccel(const geometry_msgs::TwistStamped::ConstPtr& message) {
+        if (!core::isFinite(toCore(message->twist))) {
             ROS_WARN_THROTTLE(2.0, "drop vrpn accel: non-finite value");
             return;
         }
-        accel_pub_.publish(message);
+        geometry_msgs::AccelStamped out;
+        out.header = message->header;
+        out.accel.linear = message->twist.linear;
+        out.accel.angular = message->twist.angular;
+        accel_pub_.publish(out);
     }
 
     core::PoseRelay relay_;
