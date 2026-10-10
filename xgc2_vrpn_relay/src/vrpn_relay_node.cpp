@@ -96,6 +96,8 @@ NodeConfig loadConfig(ros::NodeHandle& pnh) {
     quality.max_abs_xy = doubleParam(pnh, "max_abs_xy", quality_defaults.max_abs_xy);
     quality.max_jump_m = doubleParam(pnh, "max_jump_m", quality_defaults.max_jump_m);
     quality.frozen_s = doubleParam(pnh, "frozen_s", quality_defaults.frozen_s);
+    quality.jump_reacquire_s =
+        doubleParam(pnh, "jump_reacquire_s", quality_defaults.jump_reacquire_s);
 
     core::OffsetConfig& offset = config.relay.offset;
     offset.offset.x = doubleParam(pnh, "offset_x", 0.0);
@@ -138,7 +140,8 @@ class VrpnRelay {
 public:
     VrpnRelay(ros::NodeHandle& nh, const NodeConfig& config)
         : relay_(config.relay), vision_cadence_(config.vision_target_hz),
-          align_to_x_(config.relay.offset.align_to_x), align_to_y_(config.relay.offset.align_to_y) {
+          align_to_x_(config.relay.offset.align_to_x), align_to_y_(config.relay.offset.align_to_y),
+          jump_reacquire_s_(config.relay.quality.jump_reacquire_s) {
         // Publishers first, so no callback can run before its output exists.
         pose_pub_ = nh.advertise<geometry_msgs::PoseStamped>(config.pose_out, 1);
         twist_pub_ = nh.advertise<geometry_msgs::TwistStamped>(config.twist_out, 1);
@@ -163,6 +166,13 @@ private:
         if (!result.accepted()) {
             ROS_WARN_THROTTLE(2.0, "drop vrpn pose: %s", core::toString(result.rejection));
             return;
+        }
+        if (result.reacquired) {
+            ROS_WARN(
+                "vrpn_relay re-acquired the track: the pose stayed more than max_jump_m away from "
+                "the last accepted pose for %.2f s; continuing from raw=(%.3f, %.3f, %.3f)",
+                jump_reacquire_s_, message.pose.position.x, message.pose.position.y,
+                message.pose.position.z);
         }
         if (result.aligned_now) {
             ROS_INFO("vrpn_relay align raw=(%.3f, %.3f) -> (%.3f, %.3f) offset=(%.3f, %.3f)",
@@ -207,6 +217,7 @@ private:
     core::VisionPublishCadence vision_cadence_;
     const double align_to_x_;
     const double align_to_y_;
+    const double jump_reacquire_s_;
     ros::Publisher pose_pub_;
     ros::Publisher twist_pub_;
     ros::Publisher accel_pub_;
@@ -226,11 +237,13 @@ int main(int argc, char** argv) {
         const NodeConfig config = loadConfig(pnh);
         const core::OffsetConfig& offset = config.relay.offset;
         ROS_INFO("vrpn_relay tracker=%s pose=%s vision=%s target_hz=%.1f "
-                 "offset=(%.3f, %.3f, %.3f) align_xy=%s align_to=(%.3f, %.3f)",
+                 "offset=(%.3f, %.3f, %.3f) align_xy=%s align_to=(%.3f, %.3f) "
+                 "jump_reacquire_s=%.2f",
                  config.tracker.c_str(), config.pose_out.c_str(),
                  config.vision_out.empty() ? "off" : config.vision_out.c_str(),
                  config.vision_target_hz, offset.offset.x, offset.offset.y, offset.offset.z,
-                 offset.align_xy ? "true" : "false", offset.align_to_x, offset.align_to_y);
+                 offset.align_xy ? "true" : "false", offset.align_to_x, offset.align_to_y,
+                 config.relay.quality.jump_reacquire_s);
         VrpnRelay relay(nh, config);
         ros::spin();
     } catch (const std::exception& error) {

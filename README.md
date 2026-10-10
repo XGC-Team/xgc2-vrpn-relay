@@ -63,7 +63,8 @@ has
    normalized),
 3. `(x, y) == (0, 0)` while `reject_origin` is set (`origin`),
 4. `|x|` or `|y|` above `max_abs_xy` (`abs_xy`),
-5. a 3D distance above `max_jump_m` from the last accepted pose (`jump`),
+5. a 3D distance above `max_jump_m` from the last accepted pose (`jump`;
+   see below for a track that stays there),
 6. not moved by 1e-4 m since it last moved, for `frozen_s` seconds or more
    (`frozen`).
 
@@ -72,12 +73,35 @@ that check off. Twist and accel get only a finite check.
 
 Two properties worth knowing in the field:
 
-- A rejected pose never becomes the new reference. If the tracker
-  re-acquires the body more than `max_jump_m` away from the last accepted
-  pose, every frame stays rejected as `jump` until the body is back within
-  that distance, or the node is restarted.
+- A rejected pose never becomes the new reference, with one exception, the
+  jump re-acquisition below.
 - "Not moving" is judged from the position where the pose last moved, not
   from the previous frame, so a slow drift is not frozen.
+
+#### Jump re-acquisition
+
+A tracker that loses a body and finds it again somewhere else reports a
+jump, and so does a glitch (a ghost marker, a swapped body). Without a way
+out, the first case would reject every frame for good: the reference is the
+last accepted pose, which is nowhere near the body any more, and only a
+restart of the node would help. The two differ in what follows. A glitch is
+over within a few frames or moves around; a body that is found again stays.
+
+So when frames keep failing **only** the jump check for `jump_reacquire_s`
+(default 1 s), each within `max_jump_m` of the frame before it and no more
+than `jump_reacquire_s` after it, the newest frame is accepted as the new
+reference and the node logs a warning (`vrpn_relay re-acquired the track`).
+Any other frame ends the count: a frame that is accepted, that fails another
+check, that is more than `max_jump_m` from the previous one, or that comes
+after a gap of more than `jump_reacquire_s`; a clock that goes backwards
+starts it again. At the moment of re-acquisition the alignment or fixed
+offset stays what it was, so the output jumps by the distance the raw pose
+jumped, and frozen detection starts again from that frame. The first second
+of the new track is not published. A glitch that stays put for the whole
+`jump_reacquire_s` looks like a body that was found again and is taken over
+too: that is the price of not needing a restart. `jump_reacquire_s:=0`
+switches this off and keeps a jump rejected until the pose comes back within
+`max_jump_m`.
 
 ### Offset and alignment
 
@@ -117,6 +141,7 @@ marked with a star.
 | `max_abs_xy` | `900.0` | quality gate [m] |
 | `max_jump_m` | `2.0` | quality gate [m] |
 | `frozen_s` | `0.5` | quality gate [s] |
+| `jump_reacquire_s` | `1.0` | take over a track that jumped and stays this long [s]; 0 or less never does |
 | `offset_x` `offset_y` `offset_z` ★ | `0.0` | fixed translation [m] |
 | `align_xy` ★ | `false` | first-frame XY alignment |
 | `align_to_x` `align_to_y` ★ | `0.0` | alignment target [m] |

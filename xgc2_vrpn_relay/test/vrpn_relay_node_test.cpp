@@ -347,7 +347,7 @@ TEST(VrpnRelay, ThinsTheVisionPoseToTheTargetRate) {
 }
 
 TEST(VrpnRelay, AdvertisesAVisionTopicOnlyWhenVisionOutIsSet) {
-    // relay_basic and relay_vision set vision_out; the other four relays do not.
+    // relay_basic and relay_vision set vision_out; no other relay does.
     ros::master::V_TopicInfo topics;
     ASSERT_TRUE(ros::master::getTopics(topics));
     std::set<std::string> vision_topics;
@@ -400,6 +400,57 @@ TEST(VrpnRelay, AppliesAFixedOffsetAndAcceptsTheOriginWhenAsked) {
     EXPECT_DOUBLE_EQ(poses[1].pose.position.x, 1.0);
     EXPECT_DOUBLE_EQ(poses[1].pose.position.y, 0.0);
     EXPECT_DOUBLE_EQ(poses[1].pose.position.z, 1.75);
+}
+
+// Frames of a body that stays at one place, every 50 ms, for `seconds`.
+void publishFarFrames(Rig* rig, double x, double seconds) {
+    const ros::WallTime start = ros::WallTime::now();
+    while ((ros::WallTime::now() - start).toSec() < seconds) {
+        rig->tracker.publishPose(x, 2.0, 0.5);
+        ros::WallDuration(0.05).sleep();
+    }
+}
+
+TEST(VrpnRelay, TakesOverATrackThatJumpsAndStaysButNotAGlitch) {
+    // relay_reacquire has jump_reacquire_s = 1.5.
+    Rig rig(nodeHandle(), "relay_reacquire");
+    ASSERT_TRUE(rig.ready());
+    ASSERT_TRUE(rig.relayed(1.0, 2.0, 0.5));
+
+    // A glitch: half a second 20 m away, then the body is back. Nothing of it comes out.
+    publishFarFrames(&rig, 21.0, 0.5);
+    ros::WallDuration(0.1).sleep();
+    EXPECT_EQ(rig.pose.size(), 1u);
+    ASSERT_TRUE(rig.relayed(1.2, 2.0, 0.5));
+
+    // The body shows up 20 m away and stays there: the relay takes over 1.5 s after the first
+    // frame, and not before.
+    const std::size_t before = rig.pose.size();
+    const ros::WallTime first = ros::WallTime::now();
+    while (rig.pose.size() == before && (ros::WallTime::now() - first).toSec() < 8.0) {
+        rig.tracker.publishPose(21.0, 2.0, 0.5);
+        ros::WallDuration(0.05).sleep();
+    }
+    const double elapsed = (ros::WallTime::now() - first).toSec();
+    ASSERT_GT(rig.pose.size(), before) << "the track was never taken over";
+    EXPECT_GE(elapsed, 1.4);
+    EXPECT_LT(elapsed, 6.0);
+    EXPECT_DOUBLE_EQ(rig.pose.all()[before].pose.position.x, 21.0);
+
+    // From there it is the track: near frames pass, and the old place is the far one.
+    ASSERT_TRUE(rig.relayed(21.1, 2.0, 0.5));
+    EXPECT_TRUE(rig.dropped(1.2, 2.0, 0.5));
+}
+
+TEST(VrpnRelay, KeepsRejectingAJumpWhenReacquisitionIsOff) {
+    // relay_latch has jump_reacquire_s = 0, which is how the relay behaved before.
+    Rig rig(nodeHandle(), "relay_latch");
+    ASSERT_TRUE(rig.ready());
+    ASSERT_TRUE(rig.relayed(1.0, 2.0, 0.5));
+    publishFarFrames(&rig, 21.0, 2.5);
+    ros::WallDuration(0.1).sleep();
+    EXPECT_EQ(rig.pose.size(), 1u);
+    ASSERT_TRUE(rig.relayed(1.5, 2.0, 0.5));
 }
 
 TEST(VrpnRelay, TakesItsInputsFromThePrefixAndTheExplicitNames) {

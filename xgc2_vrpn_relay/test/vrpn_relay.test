@@ -62,6 +62,24 @@
     <param name="reject_origin" value="false" />
   </node>
 
+  <!-- A track that jumps away and stays there is taken over after 1.5 s. -->
+  <node pkg="xgc2_vrpn_relay" type="vrpn_relay" name="relay_reacquire" output="screen">
+    <param name="tracker" value="relay_reacquire" />
+    <param name="pose_out" value="/relay_reacquire/pose" />
+    <param name="twist_out" value="/relay_reacquire/twist" />
+    <param name="accel_out" value="/relay_reacquire/accel" />
+    <param name="jump_reacquire_s" value="1.5" />
+  </node>
+
+  <!-- The same with re-acquisition off: a jump stays rejected. -->
+  <node pkg="xgc2_vrpn_relay" type="vrpn_relay" name="relay_latch" output="screen">
+    <param name="tracker" value="relay_latch" />
+    <param name="pose_out" value="/relay_latch/pose" />
+    <param name="twist_out" value="/relay_latch/twist" />
+    <param name="accel_out" value="/relay_latch/accel" />
+    <param name="jump_reacquire_s" value="0.0" />
+  </node>
+
   <!-- Input names: a custom prefix, with the twist input named explicitly. -->
   <node pkg="xgc2_vrpn_relay" type="vrpn_relay" name="relay_topics" output="screen">
     <param name="tracker" value="relay_topics" />
