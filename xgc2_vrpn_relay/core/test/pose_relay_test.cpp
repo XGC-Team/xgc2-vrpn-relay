@@ -142,5 +142,59 @@ TEST(PoseRelay, UsesTheQualityConfig) {
     EXPECT_TRUE(relay.process(poseAt(0.0, 0.0), 100.0).accepted());
 }
 
+TEST(PoseRelay, ReacquisitionKeepsTheAlignmentAndFlagsTheResult) {
+    PoseRelayConfig config;
+    config.offset.align_xy = true;
+    config.offset.align_to_x = 1.0;
+    config.offset.align_to_y = 1.0;
+    config.offset.offset.z = 0.5;
+    PoseRelay relay(config);
+    const PoseRelayResult first = relay.process(poseAt(3.0, 4.0, 0.25), 0.0);
+    ASSERT_TRUE(first.accepted());
+    ASSERT_TRUE(first.aligned_now);
+    EXPECT_FALSE(first.reacquired);
+
+    // The body re-appears 10 m away and stays for a second (frames every 1/16 s).
+    for (int frame = 0; frame < 16; ++frame) {
+        EXPECT_EQ(relay.process(poseAt(13.0, 4.0, 0.25), 5.0 + frame * 0.0625).rejection,
+                  PoseRejection::kJump);
+    }
+    const PoseRelayResult again = relay.process(poseAt(13.0, 4.0, 0.25), 6.0);
+    ASSERT_TRUE(again.accepted());
+    EXPECT_TRUE(again.reacquired);
+    EXPECT_FALSE(again.aligned_now);
+    // The offset of the first frame is still the offset: the output jumps by what the raw pose did.
+    EXPECT_NEAR(again.pose.position.x, 11.0, 1e-12);
+    EXPECT_NEAR(again.pose.position.y, 1.0, 1e-12);
+    EXPECT_NEAR(again.pose.position.z, 0.75, 1e-12);
+    EXPECT_NEAR(relay.offset().x, -2.0, 1e-12);
+
+    const PoseRelayResult next = relay.process(poseAt(13.1, 4.0, 0.25), 6.0625);
+    ASSERT_TRUE(next.accepted());
+    EXPECT_FALSE(next.reacquired);
+    EXPECT_NEAR(next.pose.position.x, 11.1, 1e-12);
+}
+
+TEST(PoseRelay, ReacquisitionIsOnInTheDefaultConfig) {
+    EXPECT_DOUBLE_EQ(PoseRelayConfig().quality.jump_reacquire_s, 1.0);
+    PoseRelay relay{PoseRelayConfig()};
+    ASSERT_TRUE(relay.process(poseAt(1.0, 2.0), 0.0).accepted());
+    for (int frame = 0; frame < 16; ++frame) {
+        EXPECT_FALSE(relay.process(poseAt(11.0, 2.0), 1.0 + frame * 0.0625).accepted());
+    }
+    EXPECT_TRUE(relay.process(poseAt(11.0, 2.0), 2.0).reacquired);
+}
+
+TEST(PoseRelay, TurnedOffTheJumpStaysLatched) {
+    PoseRelayConfig config;
+    config.quality.jump_reacquire_s = 0.0;
+    PoseRelay relay(config);
+    ASSERT_TRUE(relay.process(poseAt(1.0, 2.0), 0.0).accepted());
+    for (int frame = 0; frame < 160; ++frame) {
+        EXPECT_EQ(relay.process(poseAt(11.0, 2.0), 1.0 + frame * 0.0625).rejection,
+                  PoseRejection::kJump);
+    }
+}
+
 }  // namespace
 }  // namespace xgc2_vrpn_relay

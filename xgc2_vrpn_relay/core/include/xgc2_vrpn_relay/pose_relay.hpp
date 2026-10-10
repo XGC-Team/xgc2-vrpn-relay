@@ -17,6 +17,9 @@ struct PoseRelayResult {
     Pose pose;
     // True for the one frame that fixed the first-frame XY alignment.
     bool aligned_now = false;
+    // True when the pose is accepted as a track that jumped and stayed (see PoseVerdict). The
+    // offset or alignment is kept, so the output jumps by the same distance as the raw pose.
+    bool reacquired = false;
 
     bool accepted() const { return rejection == PoseRejection::kNone; }
 };

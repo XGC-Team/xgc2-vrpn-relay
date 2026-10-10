@@ -374,7 +374,8 @@ TEST(PoseQualityGate, RejectedPosesLeaveTheHistoryAlone) {
 TEST(PoseQualityGate, AJumpIsRejectedUntilThePoseReturnsNearTheLastAcceptedPose) {
     PoseQualityGate gate;
     ASSERT_TRUE(gate.check(poseAt(1.0, 2.0), 1.0).accepted());
-    // The tracker re-acquires 10 m away: every frame there is a jump from the last accepted pose.
+    // Ten m away for 0.04 s, far below jump_reacquire_s: every frame there is a jump from the last
+    // accepted pose.
     for (int frame = 0; frame < 5; ++frame) {
         EXPECT_EQ(gate.check(poseAt(11.0 + 0.01 * frame, 2.0), 1.1 + 0.01 * frame).rejection,
                   PoseRejection::kJump);
@@ -427,6 +428,257 @@ TEST(PoseQualityGate, ReturnsTheNormalizedQuaternion) {
     ASSERT_TRUE(verdict.accepted());
     EXPECT_DOUBLE_EQ(verdict.orientation.z, 0.6);
     EXPECT_DOUBLE_EQ(verdict.orientation.w, 0.8);
+}
+
+// A frame every 1/16 s: sums of these are exact in binary, so the boundaries below are exact.
+constexpr double kFrame = 0.0625;
+
+// Feeds `count` frames of a body that stays at (x + frame * 1/16 m, 2), starting at start_s.
+// Returns the number of frames the gate accepted.
+int feedFarFrames(PoseQualityGate* gate, double x, double start_s, int count) {
+    int accepted = 0;
+    for (int frame = 0; frame < count; ++frame) {
+        if (gate->check(poseAt(x + frame * kFrame, 2.0), start_s + frame * kFrame).accepted()) {
+            ++accepted;
+        }
+    }
+    return accepted;
+}
+
+TEST(JumpReacquire, IsOnByDefaultForOneSecond) {
+    EXPECT_DOUBLE_EQ(PoseQualityConfig().jump_reacquire_s, 1.0);
+}
+
+TEST(JumpReacquire, ATrackThatStaysIsAcceptedAfterTheConfiguredTime) {
+    PoseQualityGate gate;
+    ASSERT_TRUE(gate.check(poseAt(1.0, 2.0), 0.0).accepted());
+    // The body shows up 10 m away at t = 5 s and stays: 16 frames fill the first second.
+    EXPECT_EQ(feedFarFrames(&gate, 11.0, 5.0, 16), 0);
+    ASSERT_TRUE(gate.history().jump_run.has_value());
+    EXPECT_DOUBLE_EQ(gate.history().jump_run->start_s, 5.0);
+    EXPECT_DOUBLE_EQ(gate.history().last_accepted->x, 1.0);
+
+    // The frame one second after the first one is the new start of the track.
+    const PoseVerdict verdict = gate.check(poseAt(12.0, 2.0), 6.0);
+    EXPECT_TRUE(verdict.accepted());
+    EXPECT_TRUE(verdict.reacquired);
+    EXPECT_EQ(verdict.rejection, PoseRejection::kNone);
+    EXPECT_DOUBLE_EQ(verdict.orientation.w, 1.0);
+    EXPECT_DOUBLE_EQ(gate.history().last_accepted->x, 12.0);
+    EXPECT_FALSE(gate.history().jump_run.has_value());
+
+    // From there it is an ordinary track: near frames pass, the old place is the far one now.
+    const PoseVerdict next = gate.check(poseAt(12.0 + kFrame, 2.0), 6.0 + kFrame);
+    EXPECT_TRUE(next.accepted());
+    EXPECT_FALSE(next.reacquired);
+    EXPECT_EQ(gate.check(poseAt(1.0, 2.0), 6.125).rejection, PoseRejection::kJump);
+}
+
+TEST(JumpReacquire, TheFrameJustBeforeTheConfiguredTimeIsStillRejected) {
+    PoseQualityGate gate;
+    ASSERT_TRUE(gate.check(poseAt(1.0, 2.0), 0.0).accepted());
+    EXPECT_EQ(feedFarFrames(&gate, 11.0, 5.0, 15), 0);  // 5.0 .. 5.875
+    // 0.9375 s and 0.96875 s after the first frame of the run.
+    EXPECT_EQ(gate.check(poseAt(12.0, 2.0), 5.9375).rejection, PoseRejection::kJump);
+    EXPECT_EQ(gate.check(poseAt(12.0, 2.0), 5.96875).rejection, PoseRejection::kJump);
+    EXPECT_TRUE(gate.check(poseAt(12.0, 2.0), 6.0).reacquired);
+}
+
+TEST(JumpReacquire, TheConfiguredTimeIsTheConfiguredTime) {
+    PoseQualityConfig config;
+    config.jump_reacquire_s = 0.25;
+    PoseQualityGate gate(config);
+    ASSERT_TRUE(gate.check(poseAt(1.0, 2.0), 0.0).accepted());
+    EXPECT_EQ(feedFarFrames(&gate, 11.0, 5.0, 4), 0);
+    EXPECT_TRUE(gate.check(poseAt(11.25, 2.0), 5.25).reacquired);
+}
+
+TEST(JumpReacquire, AGlitchShorterThanTheTimeIsStillRejected) {
+    PoseQualityGate gate;
+    ASSERT_TRUE(gate.check(poseAt(1.0, 2.0), 0.0).accepted());
+    // 15 frames, 0.9375 s, at a far place; then the body is back where it was.
+    EXPECT_EQ(feedFarFrames(&gate, 11.0, 5.0, 15), 0);
+    const PoseVerdict back = gate.check(poseAt(1.0 + kFrame, 2.0), 5.9375);
+    EXPECT_TRUE(back.accepted());
+    EXPECT_FALSE(back.reacquired);
+    EXPECT_FALSE(gate.history().jump_run.has_value());
+    // The next glitch starts from zero: it needs its own full second.
+    EXPECT_EQ(feedFarFrames(&gate, 11.0, 6.0, 15), 0);
+    EXPECT_DOUBLE_EQ(gate.history().last_accepted->x, 1.0 + kFrame);
+}
+
+TEST(JumpReacquire, AGhostThatWandersBetweenPlacesIsNeverAccepted) {
+    PoseQualityGate gate;
+    ASSERT_TRUE(gate.check(poseAt(1.0, 2.0), 0.0).accepted());
+    int accepted = 0;
+    for (int frame = 0; frame < 160; ++frame) {           // ten seconds
+        const double x = (frame % 2 == 0) ? 11.0 : 30.0;  // 19 m apart
+        accepted += gate.check(poseAt(x, 2.0), 5.0 + frame * kFrame).accepted() ? 1 : 0;
+    }
+    EXPECT_EQ(accepted, 0);
+    EXPECT_DOUBLE_EQ(gate.history().last_accepted->x, 1.0);
+}
+
+TEST(JumpReacquire, ADriftingTrackIsFollowedWhileEachStepStaysWithinTheJumpLimit) {
+    PoseQualityGate gate;
+    ASSERT_TRUE(gate.check(poseAt(1.0, 2.0), 0.0).accepted());
+    // The body moves on at 1.9 m per frame: far from the anchor, close to the last frame.
+    int accepted = 0;
+    for (int frame = 0; frame < 20; ++frame) {
+        accepted +=
+            gate.check(poseAt(11.0 + 1.9 * frame, 2.0), 5.0 + frame * kFrame).accepted() ? 1 : 0;
+    }
+    EXPECT_EQ(accepted, 4);  // frames 16..19 of the 20 are past the first second
+}
+
+TEST(JumpReacquire, FramesFartherApartThanTheJumpLimitDoNotFormARun) {
+    PoseQualityGate gate;
+    ASSERT_TRUE(gate.check(poseAt(1.0, 2.0), 0.0).accepted());
+    EXPECT_EQ(gate.check(poseAt(11.0, 2.0), 5.0).rejection, PoseRejection::kJump);
+    // 2.0 m from the previous frame continues the run, 2.5 m starts a new one.
+    EXPECT_EQ(gate.check(poseAt(13.0, 2.0), 5.5).rejection, PoseRejection::kJump);
+    EXPECT_DOUBLE_EQ(gate.history().jump_run->start_s, 5.0);
+    EXPECT_EQ(gate.check(poseAt(15.5, 2.0), 5.75).rejection, PoseRejection::kJump);
+    EXPECT_DOUBLE_EQ(gate.history().jump_run->start_s, 5.75);
+    EXPECT_EQ(gate.check(poseAt(15.5, 2.0), 6.5).rejection, PoseRejection::kJump);
+    EXPECT_TRUE(gate.check(poseAt(15.5, 2.0), 6.75).reacquired);
+}
+
+TEST(JumpReacquire, AFrameThatFailsAnotherCheckEndsTheRun) {
+    PoseQualityGate gate;
+    ASSERT_TRUE(gate.check(poseAt(1.0, 2.0), 0.0).accepted());
+    EXPECT_EQ(feedFarFrames(&gate, 11.0, 5.0, 12), 0);  // 0.6875 s
+    ASSERT_TRUE(gate.history().jump_run.has_value());
+    EXPECT_EQ(gate.check(poseAt(std::numeric_limits<double>::quiet_NaN(), 2.0), 5.75).rejection,
+              PoseRejection::kNonFinite);
+    EXPECT_FALSE(gate.history().jump_run.has_value());
+    // The second that follows has to be complete on its own.
+    EXPECT_EQ(feedFarFrames(&gate, 11.0, 5.8125, 16), 0);
+    EXPECT_TRUE(gate.check(poseAt(12.0, 2.0), 6.8125).reacquired);
+}
+
+TEST(JumpReacquire, AnOriginFrameEndsTheRunToo) {
+    PoseQualityGate gate;
+    ASSERT_TRUE(gate.check(poseAt(1.0, 2.0), 0.0).accepted());
+    EXPECT_EQ(feedFarFrames(&gate, 11.0, 5.0, 12), 0);
+    EXPECT_EQ(gate.check(poseAt(0.0, 0.0), 5.75).rejection, PoseRejection::kOrigin);
+    EXPECT_FALSE(gate.history().jump_run.has_value());
+}
+
+TEST(JumpReacquire, AFrameThatPassesTheJumpCheckEndsTheRun) {
+    PoseQualityGate gate;
+    ASSERT_TRUE(gate.check(poseAt(1.0, 2.0), 0.0).accepted());
+    EXPECT_EQ(feedFarFrames(&gate, 11.0, 5.0, 12), 0);
+    EXPECT_TRUE(gate.check(poseAt(1.5, 2.0), 5.75).accepted());
+    EXPECT_FALSE(gate.history().jump_run.has_value());
+    EXPECT_EQ(feedFarFrames(&gate, 11.0, 5.8125, 15), 0);
+}
+
+TEST(JumpReacquire, ALongGapBetweenTwoFarFramesStartsTheRunAgain) {
+    PoseQualityGate gate;
+    ASSERT_TRUE(gate.check(poseAt(1.0, 2.0), 0.0).accepted());
+    EXPECT_EQ(gate.check(poseAt(11.0, 2.0), 5.0).rejection, PoseRejection::kJump);
+    // The tracker went silent for 4 s: two sightings that far apart in time are not a track.
+    EXPECT_EQ(gate.check(poseAt(11.5, 2.0), 9.0).rejection, PoseRejection::kJump);
+    EXPECT_DOUBLE_EQ(gate.history().jump_run->start_s, 9.0);
+    EXPECT_EQ(gate.check(poseAt(11.5, 2.0), 9.5).rejection, PoseRejection::kJump);
+    EXPECT_TRUE(gate.check(poseAt(11.5, 2.0), 10.0).reacquired);
+}
+
+TEST(JumpReacquire, AClockRewindStartsTheRunAgain) {
+    PoseQualityGate gate;
+    ASSERT_TRUE(gate.check(poseAt(1.0, 2.0), 0.0).accepted());
+    EXPECT_EQ(gate.check(poseAt(11.0, 2.0), 50.0).rejection, PoseRejection::kJump);
+    EXPECT_EQ(gate.check(poseAt(11.0, 2.0), 40.0).rejection, PoseRejection::kJump);
+    EXPECT_DOUBLE_EQ(gate.history().jump_run->start_s, 40.0);
+}
+
+TEST(JumpReacquire, TurnedOffAJumpStaysRejected) {
+    for (const double off : {0.0, -1.0}) {
+        PoseQualityConfig config;
+        config.jump_reacquire_s = off;
+        PoseQualityGate gate(config);
+        ASSERT_TRUE(gate.check(poseAt(1.0, 2.0), 0.0).accepted());
+        EXPECT_EQ(feedFarFrames(&gate, 11.0, 5.0, 160), 0);  // ten seconds
+        EXPECT_FALSE(gate.history().jump_run.has_value());
+        EXPECT_DOUBLE_EQ(gate.history().last_accepted->x, 1.0);
+        EXPECT_TRUE(gate.check(poseAt(1.5, 2.0), 20.0).accepted());
+    }
+}
+
+TEST(JumpReacquire, DoesNotApplyWithoutAJumpCheck) {
+    PoseQualityConfig config;
+    config.max_jump_m = 0.0;
+    PoseQualityGate gate(config);
+    ASSERT_TRUE(gate.check(poseAt(1.0, 2.0), 0.0).accepted());
+    const PoseVerdict far = gate.check(poseAt(500.0, 2.0), 0.5);
+    EXPECT_TRUE(far.accepted());
+    EXPECT_FALSE(far.reacquired);
+    EXPECT_FALSE(gate.history().jump_run.has_value());
+}
+
+TEST(JumpReacquire, RestartsFrozenDetectionAtTheNewTrack) {
+    PoseQualityGate gate;
+    ASSERT_TRUE(gate.check(poseAt(1.0, 2.0), 0.0).accepted());
+    EXPECT_EQ(feedFarFrames(&gate, 11.0, 5.0, 16), 0);
+    ASSERT_TRUE(gate.check(poseAt(12.0, 2.0), 6.0).reacquired);
+    EXPECT_DOUBLE_EQ(gate.history().last_move->time_s, 6.0);
+    EXPECT_DOUBLE_EQ(gate.history().last_move->position.x, 12.0);
+    // Standing still at the new place is frozen after frozen_s from the re-acquisition.
+    EXPECT_TRUE(gate.check(poseAt(12.0, 2.0), 6.25).accepted());
+    EXPECT_TRUE(gate.check(poseAt(12.0, 2.0), 6.4375).accepted());
+    EXPECT_EQ(gate.check(poseAt(12.0, 2.0), 6.5).rejection, PoseRejection::kFrozen);
+}
+
+TEST(JumpReacquire, EvaluatePoseDecidesFromTheHistoryAndLeavesItAlone) {
+    PoseQualityConfig config;
+    PoseHistory history;
+    history.last_accepted = Vec3{1.0, 2.0, 0.5};
+    history.last_move = PoseHistory::Movement{Vec3{1.0, 2.0, 0.5}, 0.0};
+    history.jump_run = PoseHistory::JumpRun{Vec3{11.0, 2.0, 0.5}, 5.0, 5.9375};
+
+    PoseVerdict early = evaluatePose(poseAt(11.0625, 2.0), history, 5.96875, config);
+    EXPECT_EQ(early.rejection, PoseRejection::kJump);
+    EXPECT_FALSE(early.reacquired);
+
+    PoseVerdict stayed = evaluatePose(poseAt(11.0625, 2.0), history, 6.0, config);
+    EXPECT_TRUE(stayed.accepted());
+    EXPECT_TRUE(stayed.reacquired);
+    EXPECT_DOUBLE_EQ(stayed.orientation.w, 1.0);
+
+    // Not within the jump limit of the run's latest frame: no.
+    EXPECT_EQ(evaluatePose(poseAt(20.0, 2.0), history, 6.0, config).rejection,
+              PoseRejection::kJump);
+    // The history is only read.
+    EXPECT_DOUBLE_EQ(history.last_accepted->x, 1.0);
+    EXPECT_DOUBLE_EQ(history.jump_run->start_s, 5.0);
+    EXPECT_DOUBLE_EQ(history.jump_run->last_s, 5.9375);
+
+    // Without a run in the history, even the far frame of a long track is only a jump.
+    history.jump_run.reset();
+    EXPECT_EQ(evaluatePose(poseAt(11.0, 2.0), history, 6.0, config).rejection,
+              PoseRejection::kJump);
+}
+
+TEST(JumpReacquire, HistoryBookkeeping) {
+    PoseQualityConfig config;
+    PoseHistory history;
+    history.recordAccepted(Vec3{1.0, 2.0, 0.5}, 0.0);
+    history.recordJumpRejected(Vec3{11.0, 2.0, 0.5}, 5.0, config);
+    ASSERT_TRUE(history.jump_run.has_value());
+    EXPECT_DOUBLE_EQ(history.jump_run->start_s, 5.0);
+    history.recordJumpRejected(Vec3{11.5, 2.0, 0.5}, 5.5, config);
+    EXPECT_DOUBLE_EQ(history.jump_run->start_s, 5.0);
+    EXPECT_DOUBLE_EQ(history.jump_run->last_s, 5.5);
+    EXPECT_DOUBLE_EQ(history.jump_run->last_position.x, 11.5);
+    history.recordAccepted(Vec3{1.0, 2.0, 0.5}, 6.0);
+    EXPECT_FALSE(history.jump_run.has_value());
+
+    history.recordJumpRejected(Vec3{11.0, 2.0, 0.5}, 7.0, config);
+    history.recordReacquired(Vec3{11.0, 2.0, 0.5}, 8.0);
+    EXPECT_FALSE(history.jump_run.has_value());
+    EXPECT_DOUBLE_EQ(history.last_accepted->x, 11.0);
+    EXPECT_DOUBLE_EQ(history.last_move->time_s, 8.0);
 }
 
 }  // namespace

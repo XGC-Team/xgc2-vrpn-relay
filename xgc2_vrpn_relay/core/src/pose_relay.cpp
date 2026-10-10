@@ -12,6 +12,7 @@ PoseRelayResult PoseRelay::process(const Pose& raw, double receipt_s) {
     if (!verdict.accepted()) {
         return result;
     }
+    result.reacquired = verdict.reacquired;
     result.aligned_now = !offset_.aligned();
     result.pose.position = offset_.project(raw.position);
     result.pose.orientation = verdict.orientation;
