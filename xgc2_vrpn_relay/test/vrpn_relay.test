@@ -1,0 +1,77 @@
+<launch>
+  <!-- One relay per scenario: every relay keeps its own pose history, so a test can rely on
+       the state it left behind. Tracker i publishes /vrpn_client_node/<i>/{pose,twist,accel};
+       the relay answers on /<i>/{pose,twist,accel} and, where set, /<i>/vision. -->
+
+  <!-- Plain relay with every default except the output names and the vision output. -->
+  <node pkg="xgc2_vrpn_relay" type="vrpn_relay" name="relay_basic" output="screen">
+    <param name="tracker" value="relay_basic" />
+    <param name="pose_out" value="/relay_basic/pose" />
+    <param name="twist_out" value="/relay_basic/twist" />
+    <param name="accel_out" value="/relay_basic/accel" />
+    <param name="vision_out" value="/relay_basic/vision" />
+  </node>
+
+  <!-- Quality gate with its defaults. -->
+  <node pkg="xgc2_vrpn_relay" type="vrpn_relay" name="relay_gate" output="screen">
+    <param name="tracker" value="relay_gate" />
+    <param name="pose_out" value="/relay_gate/pose" />
+    <param name="twist_out" value="/relay_gate/twist" />
+    <param name="accel_out" value="/relay_gate/accel" />
+  </node>
+
+  <!-- Frozen detection; a one second window keeps the timing of the test loose. -->
+  <node pkg="xgc2_vrpn_relay" type="vrpn_relay" name="relay_frozen" output="screen">
+    <param name="tracker" value="relay_frozen" />
+    <param name="pose_out" value="/relay_frozen/pose" />
+    <param name="twist_out" value="/relay_frozen/twist" />
+    <param name="accel_out" value="/relay_frozen/accel" />
+    <param name="frozen_s" value="1.0" />
+  </node>
+
+  <!-- Vision output at the default 30 Hz. -->
+  <node pkg="xgc2_vrpn_relay" type="vrpn_relay" name="relay_vision" output="screen">
+    <param name="tracker" value="relay_vision" />
+    <param name="pose_out" value="/relay_vision/pose" />
+    <param name="twist_out" value="/relay_vision/twist" />
+    <param name="accel_out" value="/relay_vision/accel" />
+    <param name="vision_out" value="/relay_vision/vision" />
+  </node>
+
+  <!-- First accepted pose goes to (1, -2); z shifted by 0.5; no vision output. -->
+  <node pkg="xgc2_vrpn_relay" type="vrpn_relay" name="relay_align" output="screen">
+    <param name="tracker" value="relay_align" />
+    <param name="pose_out" value="/relay_align/pose" />
+    <param name="twist_out" value="/relay_align/twist" />
+    <param name="accel_out" value="/relay_align/accel" />
+    <param name="align_xy" value="true" />
+    <param name="align_to_x" value="1.0" />
+    <param name="align_to_y" value="-2.0" />
+    <param name="offset_z" value="0.5" />
+  </node>
+
+  <!-- Fixed offset; the origin is a valid pose here. -->
+  <node pkg="xgc2_vrpn_relay" type="vrpn_relay" name="relay_offset" output="screen">
+    <param name="tracker" value="relay_offset" />
+    <param name="pose_out" value="/relay_offset/pose" />
+    <param name="twist_out" value="/relay_offset/twist" />
+    <param name="accel_out" value="/relay_offset/accel" />
+    <param name="offset_x" value="0.5" />
+    <param name="offset_y" value="-1.0" />
+    <param name="offset_z" value="0.25" />
+    <param name="reject_origin" value="false" />
+  </node>
+
+  <!-- Input names: a custom prefix, with the twist input named explicitly. -->
+  <node pkg="xgc2_vrpn_relay" type="vrpn_relay" name="relay_topics" output="screen">
+    <param name="tracker" value="relay_topics" />
+    <param name="vrpn_prefix" value="/custom_prefix" />
+    <param name="twist_in" value="/explicit/twist" />
+    <param name="pose_out" value="/relay_topics/pose" />
+    <param name="twist_out" value="/relay_topics/twist" />
+    <param name="accel_out" value="/relay_topics/accel" />
+  </node>
+
+  <test test-name="vrpn_relay_node_test" pkg="xgc2_vrpn_relay" type="xgc2_vrpn_relay_node_test"
+        time-limit="120.0" />
+</launch>
